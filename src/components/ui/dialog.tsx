@@ -53,11 +53,14 @@ function DialogContent({
       <DialogPrimitive.Popup
         data-slot="dialog-content"
         className={cn(
-          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          // Mobile: bottom sheet in the thumb zone. sm+: centered dialog.
+          "fixed inset-x-0 bottom-0 z-50 grid w-full gap-4 rounded-t-2xl bg-popover p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] text-sm text-popover-foreground ring-1 ring-foreground/10 duration-200 outline-none data-open:animate-in data-open:slide-in-from-bottom data-closed:animate-out data-closed:slide-out-to-bottom",
+          "sm:inset-x-auto sm:top-1/2 sm:bottom-auto sm:left-1/2 sm:max-w-sm sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-xl sm:pb-4 sm:duration-150 sm:data-open:fade-in-0 sm:data-open:zoom-in-95 sm:data-open:slide-in-from-bottom-0 sm:data-closed:fade-out-0 sm:data-closed:zoom-out-95 sm:data-closed:slide-out-to-bottom-0",
           className
         )}
         {...props}
       >
+        <div aria-hidden className="mx-auto -mt-1 -mb-1 h-1 w-10 rounded-full bg-muted-foreground/30 sm:hidden" />
         {children}
         {showCloseButton && (
           <DialogPrimitive.Close

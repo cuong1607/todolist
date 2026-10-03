@@ -1,5 +1,6 @@
 import {
   CalendarCheck,
+  CalendarDays,
   LayoutDashboard,
   LayoutList,
   Repeat,
@@ -21,8 +22,9 @@ export type NavItem = {
 export const navByRole: Record<Role, NavItem[]> = {
   EMPLOYEE: [
     { href: "/today", label: "Hôm nay", icon: CalendarCheck },
+    { href: "/calendar", label: "Lịch", icon: CalendarDays },
     { href: "/tasks", label: "Công việc", icon: LayoutList },
-    { href: "/profile", label: "Hồ sơ", icon: UserRound },
+    { href: "/profile", label: "Tài khoản", icon: UserRound },
   ],
   ADMIN: [
     { href: "/overview", label: "Tổng quan", icon: LayoutDashboard },
@@ -38,8 +40,9 @@ export function isActivePath(pathname: string, href: string) {
 
 const titles: Record<string, string> = {
   "/today": "Hôm nay",
+  "/calendar": "Lịch",
   "/tasks": "Công việc",
-  "/profile": "Hồ sơ",
+  "/profile": "Tài khoản",
   "/overview": "Tổng quan",
   "/members": "Thành viên",
   "/fixed-tasks": "Việc cố định",

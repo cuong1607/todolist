@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
-import { PageHeader } from "@/components/page-header";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { formatDateLong, startOfDayISO, todayLocal } from "@/lib/time";
-import { TodayList } from "./today-list";
+import { APP_TIMEZONE, formatDateLong, startOfDayISO, todayLocal } from "@/lib/time";
+import { TODAY_TASK_COLUMNS } from "./task-types";
+import { TodayView } from "./today-list";
 
 export const metadata: Metadata = { title: "Hôm nay" };
 
@@ -17,9 +17,7 @@ export default async function TodayPage() {
   // would let an admin see everyone's tasks.
   const { data: tasks, error } = await supabase
     .from("tasks")
-    .select(
-      "id, type, title, note, allow_employee_note, employee_note, deadline_at, completed, completed_at, task_date, sort_order, created_at",
-    )
+    .select(TODAY_TASK_COLUMNS)
     .eq("assignee_id", me.id)
     .or(
       [
@@ -34,11 +32,27 @@ export default async function TodayPage() {
   if (error) throw new Error("Không tải được công việc hôm nay");
 
   return (
-    <>
-      <PageHeader title="Hôm nay" description={capitalize(formatDateLong(today))} />
-      <TodayList tasks={tasks} />
-    </>
+    <TodayView
+      initialTasks={tasks}
+      userId={me.id}
+      greeting={`${greetingFor(new Date())}, ${givenName(me.full_name || me.email)}`}
+      dateLabel={capitalize(formatDateLong(today))}
+    />
   );
+}
+
+function greetingFor(now: Date) {
+  const hour = Number(new Intl.DateTimeFormat("en-GB", { timeZone: APP_TIMEZONE, hour: "2-digit", hour12: false }).format(now));
+  if (hour < 11) return "Chào buổi sáng";
+  if (hour < 13) return "Chào buổi trưa";
+  if (hour < 18) return "Chào buổi chiều";
+  return "Chào buổi tối";
+}
+
+/** Vietnamese names put the given name last: "Nguyễn Văn An" → "An". */
+function givenName(fullName: string) {
+  const words = fullName.trim().split(/\s+/);
+  return words[words.length - 1] ?? fullName;
 }
 
 function capitalize(s: string) {

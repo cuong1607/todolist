@@ -51,89 +51,126 @@ try {
   check("employee lands on /today", path(page) === "/today", page.url());
 
   const nav = page.getByRole("navigation", { name: "Điều hướng chính" }).last();
-  check("employee nav has 'Hồ sơ'", await nav.getByText("Hồ sơ").isVisible());
+  const navLabels = (await nav.getByRole("link").allTextContents()).map((s) => s.trim()).join(" · ");
+  check("employee bottom nav: Hôm nay · Lịch · Công việc · Tài khoản", navLabels === "Hôm nay · Lịch · Công việc · Tài khoản", navLabels);
   check("employee nav hides 'Thành viên'", (await nav.getByText("Thành viên").count()) === 0);
 
   await page.reload();
   check("session survives reload", path(page) === "/today", page.url());
 
-  // ---------- employee: today's fixed tasks ----------
+  // ---------- header: greeting · date · progress ----------
+  check("header greets by given name", await page.getByRole("heading", { name: /^Chào buổi .+, An$/ }).isVisible());
   const progress = page.getByRole("progressbar", { name: "Tiến độ hôm nay" });
   await progress.waitFor();
-  const fixedCount = await page.getByText("Cố định", { exact: true }).count();
-  check("employee sees 3 fixed tasks today", fixedCount === 3, fixedCount);
   // Seed: 3 fixed + 1 overdue carried-over ad-hoc + 1 ad-hoc due today (backlog/upcoming excluded).
   check(
-    "progress counts today's + overdue work: 0/5",
-    (await progress.getAttribute("aria-valuenow")) === "0" && (await progress.getAttribute("aria-valuemax")) === "5",
-    `${await progress.getAttribute("aria-valuenow")}/${await progress.getAttribute("aria-valuemax")}`,
+    "progress reads '0/5 công việc hoàn thành'",
+    (await progress.getAttribute("aria-valuemax")) === "5" && (await page.getByText("công việc hoàn thành").textContent())?.replace(/\s/g, "") === "0/5côngviệchoànthành",
+    await page.getByText("công việc hoàn thành").textContent(),
   );
 
-  // ---------- employee: ad-hoc tasks ----------
+  // ---------- sections in spec order ----------
   const region = (name) => page.getByRole("region", { name });
-  const overdueRegion = region(/^Quá hạn/);
-  check(
-    "unfinished ad-hoc from yesterday carries over as overdue",
-    (await overdueRegion.getByText("Gửi báo giá cho khách Hưng Thịnh").isVisible()) &&
-      (await overdueRegion.getByText("Tồn từ hôm qua").isVisible()),
-  );
-  check("ad-hoc without deadline sits in 'Việc đang tồn'", await region(/^Việc đang tồn/).getByText("Tìm nhà cung cấp hộp carton mới").isVisible());
-  check("future ad-hoc sits in 'Sắp tới'", await region(/^Sắp tới/).getByText("Chuẩn bị hàng mẫu cho buổi chụp ảnh").isVisible());
+  // Only our task sections (other regions, e.g. the toast container, have no section- id).
+  const shown = (await page.getByRole("region").evaluateAll((els) => els.map((e) => e.getAttribute("aria-labelledby"))))
+    .filter((id) => id?.startsWith("section-"))
+    .map((id) => id.replace("section-", ""));
+  const expectedKeys = ["fixed", "dueToday", "overdue", "backlog", "upcoming"];
+  check("sections follow the spec order", JSON.stringify(shown.filter((k) => expectedKeys.includes(k))) === JSON.stringify(expectedKeys.filter((k) => shown.includes(k))), shown);
+  check("fixed section lists 3 fixed tasks", (await region(/^Công việc cố định/).getByRole("checkbox").count()) === 3);
+  check("carried-over ad-hoc from yesterday is in 'Quá hạn'", await region(/^Quá hạn/).getByText("Gửi báo giá cho khách Hưng Thịnh").isVisible());
+  check("no-deadline ad-hoc is in 'Việc đang tồn'", await region(/^Việc đang tồn/).getByText("Tìm nhà cung cấp hộp carton mới").isVisible());
+  check("'Sắp tới' starts collapsed", !(await page.getByText("Chuẩn bị hàng mẫu cho buổi chụp ảnh").isVisible()));
+  await region(/^Sắp tới/).getByRole("button", { name: /Sắp tới/ }).click();
+  await page.getByText("Chuẩn bị hàng mẫu cho buổi chụp ảnh").waitFor();
+  check("'Sắp tới' expands on tap", true);
+  check("cards show a one-line note preview", await page.getByText("Xác nhận đơn trên hệ thống trước 9h.").isVisible());
+  if (SHOTS) {
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: `${SHOTS}/e2e-employee-today.png`, fullPage: true });
+  }
 
-  await page.getByRole("button", { name: "Thêm việc phát sinh" }).click();
-  await page.getByLabel("Tên công việc").fill("E2E phát sinh");
-  if (SHOTS) await page.screenshot({ path: `${SHOTS}/e2e-adhoc-create.png` });
-  await page.getByRole("button", { name: "Thêm việc", exact: true }).click();
-  await page.getByText("Đã thêm việc").waitFor();
-  await region(/^Việc đang tồn/).getByText("E2E phát sinh").waitFor();
-  check("quick create with only a title lands in 'Việc đang tồn'", true);
-
-  await page.getByRole("button", { name: "Sửa “E2E phát sinh”" }).click();
-  await page.getByRole("radio", { name: "Ngày mai" }).click();
-  await page.getByLabel("Giờ (tuỳ chọn)").fill("09:30");
-  await page.getByRole("button", { name: "Lưu thay đổi" }).click();
-  await page.getByText("Đã lưu", { exact: true }).waitFor();
-  await region(/^Sắp tới/).getByText("E2E phát sinh").waitFor();
-  check("rescheduling to tomorrow moves it to 'Sắp tới'", await region(/^Sắp tới/).getByText("Ngày mai · 09:30").isVisible());
-
-  // The card animates out of its old section; make sure it doesn't linger as a ghost.
-  const e2eCheckbox = page.getByRole("checkbox", { name: "Hoàn thành “E2E phát sinh”" });
-  const deadline = Date.now() + 3000;
-  while ((await e2eCheckbox.count()) > 1 && Date.now() < deadline) await page.waitForTimeout(100);
-  check("moved card leaves its old section (no ghost copy)", (await e2eCheckbox.count()) === 1, await e2eCheckbox.count());
-  await e2eCheckbox.click();
-  await region(/^Đã xong/).getByText("E2E phát sinh").waitFor();
-  await page.waitForTimeout(800);
-  await page.reload();
-  check("completed ad-hoc stays in 'Đã xong' after reload", await region(/^Đã xong/).getByText("E2E phát sinh").isVisible());
-  await page.waitForTimeout(600);
-  if (SHOTS) await page.screenshot({ path: `${SHOTS}/e2e-adhoc-today.png`, fullPage: true });
-
-  const doneBefore = Number(await progress.getAttribute("aria-valuenow"));
-  await page.getByRole("checkbox", { name: "Hoàn thành “Kiểm tra đơn hàng mới”" }).click();
+  // ---------- 1-click complete: optimistic, no page reload ----------
+  const rscRequests = [];
+  const onRequest = (req) => {
+    if (req.headers()["rsc"] === "1" || req.resourceType() === "document") rscRequests.push(req.url());
+  };
+  page.on("request", onRequest);
+  const fixedBox = page.getByRole("checkbox", { name: "Hoàn thành “Kiểm tra đơn hàng mới”" });
+  const t0 = Date.now();
+  await fixedBox.click();
   await page.getByRole("checkbox", { name: "Mở lại “Kiểm tra đơn hàng mới”" }).waitFor();
-  await page.waitForTimeout(800);
-  await page.reload();
-  await progress.waitFor();
-  check("completion persists after reload", Number(await progress.getAttribute("aria-valuenow")) === doneBefore + 1);
-  await page.waitForTimeout(600);
-  if (SHOTS) await page.screenshot({ path: `${SHOTS}/e2e-employee-today.png`, fullPage: true });
+  const tickMs = Date.now() - t0;
+  check("tick is optimistic (checked well before the server answers)", tickMs < 400, `${tickMs}ms`);
+  await page.getByText("Đã xong “Kiểm tra đơn hàng mới”").waitFor();
+  check("tick does not reload or re-render the page", rscRequests.length === 0, rscRequests);
+  page.off("request", onRequest);
+  check("progress updates instantly to 1/5", (await progress.getAttribute("aria-valuenow")) === "1");
 
-  await page.getByRole("checkbox", { name: "Mở lại “Kiểm tra đơn hàng mới”" }).click();
+  await page.getByRole("button", { name: "Hoàn tác" }).click();
   await page.getByRole("checkbox", { name: "Hoàn thành “Kiểm tra đơn hàng mới”" }).waitFor();
   await page.waitForTimeout(800);
   await page.reload();
   await progress.waitFor();
-  check("employee can reopen a task", Number(await progress.getAttribute("aria-valuenow")) === doneBefore);
+  check("undo from the toast reopens the task (persisted)", (await progress.getAttribute("aria-valuenow")) === "0");
 
-  // Only "Báo cáo tồn kho cuối ngày" allows notes in the seed.
-  check("only tasks that allow notes show a note box", (await page.getByText("Thêm ghi chú…").count()) === 1);
-  await page.getByText("Thêm ghi chú…").click();
-  await page.getByLabel("Ghi chú").fill("Tồn kho: 42");
-  await page.getByRole("button", { name: "Lưu ghi chú" }).click();
-  await page.getByText("Đã lưu ghi chú").waitFor();
+  // ---------- Realtime: a change on another device shows up without reload ----------
+  const other = await context.newPage();
+  await other.goto(`${BASE}/today`);
+  await other.getByRole("checkbox", { name: "Hoàn thành “Đóng gói & bàn giao vận chuyển”" }).waitFor();
+  await page.waitForTimeout(1500); // let both Realtime channels finish subscribing
+  await other.getByRole("checkbox", { name: "Hoàn thành “Đóng gói & bàn giao vận chuyển”" }).click();
+  const synced = await page
+    .getByRole("checkbox", { name: "Mở lại “Đóng gói & bàn giao vận chuyển”" })
+    .waitFor({ timeout: 8000 })
+    .then(() => true, () => false);
+  check("Realtime syncs a tick made in another tab", synced);
+  await other.getByRole("checkbox", { name: "Mở lại “Đóng gói & bàn giao vận chuyển”" }).click();
+  await page.getByRole("checkbox", { name: "Hoàn thành “Đóng gói & bàn giao vận chuyển”" }).waitFor({ timeout: 8000 });
+  await other.close();
+
+  // ---------- quick create (extended FAB) → edit → complete ----------
+  await page.getByRole("button", { name: "Thêm việc", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Tên công việc").fill("E2E phát sinh");
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/e2e-adhoc-create.png` });
+  await dialog.getByRole("button", { name: "Thêm việc", exact: true }).click();
+  await region(/^Việc đang tồn/).getByText("E2E phát sinh").waitFor();
+  check("quick create with only a title lands in 'Việc đang tồn'", true);
+
+  await page.getByRole("button", { name: "Chi tiết “E2E phát sinh”" }).click();
+  await dialog.getByRole("radio", { name: "Ngày mai" }).click();
+  await dialog.getByLabel("Giờ (tuỳ chọn)").fill("09:30");
+  await dialog.getByRole("button", { name: "Lưu thay đổi" }).click();
+  await region(/^Sắp tới/).getByText("E2E phát sinh").waitFor();
+  check("rescheduling to tomorrow moves it to 'Sắp tới'", await region(/^Sắp tới/).getByText("Ngày mai · 09:30").isVisible());
+
+  // Scope to the target section: the old card may still be animating out (150ms) of 'Việc đang tồn'.
+  await region(/^Sắp tới/).getByRole("checkbox", { name: "Hoàn thành “E2E phát sinh”" }).click();
+  check("completed card stays in place briefly (no jump under the thumb)", await region(/^Sắp tới/).getByText("E2E phát sinh").isVisible());
+  await region(/^Đã xong/).waitFor();
+  await region(/^Đã xong/).getByRole("button", { name: /Đã xong/ }).click();
+  await region(/^Đã xong/).getByText("E2E phát sinh").waitFor();
+  check("then it settles into 'Đã xong'", true);
+  await page.waitForTimeout(800);
   await page.reload();
-  check("employee note persists", await page.getByText("Tồn kho: 42").isVisible());
+  await region(/^Đã xong/).getByRole("button", { name: /Đã xong/ }).click();
+  check("completed ad-hoc stays in 'Đã xong' after reload", await region(/^Đã xong/).getByText("E2E phát sinh").isVisible());
+
+  // ---------- fixed task detail: note only where allowed ----------
+  await page.getByRole("button", { name: "Chi tiết “Kiểm tra đơn hàng mới”" }).click();
+  await dialog.getByText("Hướng dẫn").waitFor();
+  check("fixed task without note permission has no note box", (await dialog.getByLabel("Ghi chú của bạn").count()) === 0);
+  await page.keyboard.press("Escape");
+  await dialog.waitFor({ state: "hidden" });
+
+  await page.getByRole("button", { name: "Chi tiết “Báo cáo tồn kho cuối ngày”" }).click();
+  await dialog.getByLabel("Ghi chú của bạn").fill("Tồn kho: 42");
+  await dialog.getByRole("button", { name: "Lưu ghi chú" }).click();
+  await page.getByText("Đã lưu ghi chú").waitFor();
+  await page.keyboard.press("Escape");
+  await page.reload();
+  check("employee note persists and shows as the card preview", await page.getByText("Tồn kho: 42").isVisible());
 
   for (const adminPath of ["/members", "/overview", "/settings", "/fixed-tasks"]) {
     await page.goto(`${BASE}${adminPath}`);

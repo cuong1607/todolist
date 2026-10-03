@@ -1,10 +1,10 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { toDeadlineISO } from "@/lib/time";
+import { TODAY_TASK_COLUMNS, type TodayTask } from "./task-types";
 
 const adhocSchema = z
   .object({
@@ -31,7 +31,8 @@ function parse(formData: FormData) {
   });
 }
 
-export type AdhocFormState = { ok?: boolean; error?: string; nonce?: number };
+/** `task` is returned so the Today screen can merge it without re-rendering the page. */
+export type AdhocFormState = { ok?: boolean; error?: string; nonce?: number; task?: TodayTask };
 
 export async function createAdhocTask(_prev: AdhocFormState, formData: FormData): Promise<AdhocFormState> {
   await requireUser();
@@ -41,11 +42,14 @@ export async function createAdhocTask(_prev: AdhocFormState, formData: FormData)
   // No assignee_id / task_date / created_by here: the DB fills them from the session
   // and the insert guard rejects anything else.
   const supabase = await createClient();
-  const { error } = await supabase.from("tasks").insert({ type: "ADHOC", ...parsed.data });
+  const { data, error } = await supabase
+    .from("tasks")
+    .insert({ type: "ADHOC", ...parsed.data })
+    .select(TODAY_TASK_COLUMNS)
+    .single();
   if (error) return { error: error.code === "42501" ? error.message : "Không tạo được. Thử lại sau." };
 
-  revalidatePath("/today");
-  return { ok: true, nonce: Date.now() };
+  return { ok: true, nonce: Date.now(), task: data };
 }
 
 export async function updateAdhocTask(_prev: AdhocFormState, formData: FormData): Promise<AdhocFormState> {
@@ -61,10 +65,10 @@ export async function updateAdhocTask(_prev: AdhocFormState, formData: FormData)
     .update(parsed.data)
     .eq("id", id.data)
     .eq("type", "ADHOC")
-    .select("id");
+    .select(TODAY_TASK_COLUMNS)
+    .maybeSingle();
   if (error) return { error: error.code === "42501" ? error.message : "Không lưu được. Thử lại sau." };
-  if (data.length === 0) return { error: "Không tìm thấy công việc" };
+  if (!data) return { error: "Không tìm thấy công việc" };
 
-  revalidatePath("/today");
-  return { ok: true, nonce: Date.now() };
+  return { ok: true, nonce: Date.now(), task: data };
 }

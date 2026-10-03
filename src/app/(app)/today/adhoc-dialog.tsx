@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { Loader2, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -10,16 +10,18 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { addDays, formatDay, fromDeadlineISO, todayLocal } from "@/lib/time";
 import { cn } from "@/lib/utils";
 import { createAdhocTask, updateAdhocTask, type AdhocFormState } from "./adhoc-actions";
-import type { TodayTask } from "./today-list";
+import type { TodayTask } from "./task-types";
 
 type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** null = quick create */
   task: TodayTask | null;
+  /** Receives the saved row so the list updates without a page re-render. */
+  onSaved: (task: TodayTask) => void;
 };
 
-export function AdhocDialog({ open, onOpenChange, task }: Props) {
+export function AdhocDialog({ open, onOpenChange, task, onSaved }: Props) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-md">
@@ -28,7 +30,14 @@ export function AdhocDialog({ open, onOpenChange, task }: Props) {
           <DialogDescription>{task ? "Đổi tên, dời deadline hoặc cập nhật ghi chú." : "Chỉ cần tên việc — deadline và ghi chú tuỳ chọn."}</DialogDescription>
         </DialogHeader>
         {/* key: fresh form per task / per open */}
-        <AdhocForm key={`${task?.id ?? "new"}-${open}`} task={task} onDone={() => onOpenChange(false)} />
+        <AdhocForm
+          key={`${task?.id ?? "new"}-${open}`}
+          task={task}
+          onDone={(saved) => {
+            onSaved(saved);
+            onOpenChange(false);
+          }}
+        />
       </DialogContent>
     </Dialog>
   );
@@ -44,7 +53,7 @@ function initialDue(task: TodayTask | null): { mode: DueMode; date: string; time
   return { mode, date, time };
 }
 
-function AdhocForm({ task, onDone }: { task: TodayTask | null; onDone: () => void }) {
+function AdhocForm({ task, onDone }: { task: TodayTask | null; onDone: (saved: TodayTask) => void }) {
   const [state, action, pending] = useActionState<AdhocFormState, FormData>(task ? updateAdhocTask : createAdhocTask, {});
   const init = initialDue(task);
   const [mode, setMode] = useState<DueMode>(init.mode);
@@ -52,12 +61,15 @@ function AdhocForm({ task, onDone }: { task: TodayTask | null; onDone: () => voi
   const [time, setTime] = useState(init.time);
   const [showNote, setShowNote] = useState(!!task?.note);
 
+  // Handle each successful save exactly once (onDone is a new function every render).
+  const handled = useRef<number | undefined>(undefined);
   useEffect(() => {
-    if (state.ok) {
+    if (state.ok && state.task && state.nonce !== handled.current) {
+      handled.current = state.nonce;
       toast.success(task ? "Đã lưu" : "Đã thêm việc");
-      onDone();
+      onDone(state.task);
     }
-  }, [state.ok, state.nonce, task, onDone]);
+  }, [state, task, onDone]);
 
   const today = todayLocal();
   const dueDate = mode === "none" ? "" : mode === "today" ? today : mode === "tomorrow" ? addDays(today, 1) : pickedDate;

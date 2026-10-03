@@ -112,3 +112,14 @@ Làm sau Phase 4–5 (spec đến sau) — migration `20261003040000_core_schema
 - [x] Hôm nay chia nhóm: Quá hạn · Hôm nay · Việc đang tồn · Sắp tới · Đã xong
 - [x] Test: `test:db` (33), `test:rls` (54), `test:e2e` (40)
 - [ ] Chưa có: xoá việc phát sinh (spec không cho), lịch sử ở trang Công việc
+
+## Phase 6. Employee Today Experience
+
+- [x] Header: lời chào theo giờ + tên gọi, ngày, "x/y công việc hoàn thành" + thanh tiến độ
+- [x] Nhóm theo spec: Cố định · Đến hạn hôm nay · Quá hạn · Việc đang tồn · Sắp tới (thu gọn) · Đã xong (thu gọn)
+- [x] Thẻ tối giản (checkbox · tên · deadline · 1 dòng ghi chú); chi tiết/sửa/ghi chú mở trong sheet
+- [x] Tick 1 chạm: optimistic, không reload/re-render trang, toast "Hoàn tác"; việc phát sinh xong đứng yên 0,7s rồi mới chuyển nhóm
+- [x] Realtime: đồng bộ thay đổi từ thiết bị/tab khác; tự làm mới khi quay lại tab và khi qua nửa đêm
+- [x] Mobile: bottom nav Hôm nay · Lịch · Công việc · Tài khoản; FAB "+ Thêm việc"; dialog thành bottom sheet; checkbox vùng chạm 48px
+- [x] Animation 150–250ms
+- [ ] Trang Lịch: mới giữ chỗ trong menu (chưa có spec)

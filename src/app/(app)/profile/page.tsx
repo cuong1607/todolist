@@ -11,7 +11,7 @@ import { requireUser } from "@/lib/auth";
 import { logout } from "@/app/login/actions";
 import { ProfileForm } from "./profile-form";
 
-export const metadata: Metadata = { title: "Hồ sơ" };
+export const metadata: Metadata = { title: "Tài khoản" };
 
 export default async function ProfilePage() {
   const me = await requireUser();
@@ -19,7 +19,7 @@ export default async function ProfilePage() {
 
   return (
     <>
-      <PageHeader title="Hồ sơ" />
+      <PageHeader title="Tài khoản" />
 
       <div className="grid gap-4 md:grid-cols-[1fr_20rem]">
         <div className="space-y-4">

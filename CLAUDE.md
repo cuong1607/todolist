@@ -43,6 +43,13 @@ Schema (Phase 3): `fixed_task_templates`, `tasks`, `task_history`, `notification
 - `notification_settings` row per profile (auto-created); `profiles.notification_enabled` is the master switch. `notification_logs` are written by server jobs only — use `dedupe_key` to make sends idempotent. `system_settings`: members read, admins write.
 - Timezone: `private.app_timezone()` in SQL and `APP_TIMEZONE` in `@/lib/time` — keep in sync. Use `todayLocal()` for `task_date` in the app.
 
+## Today screen (Phase 6)
+- `src/app/(app)/today/`: `TodayView` owns task state client-side — optimistic ticks, merges of rows returned by actions, Supabase Realtime (`tasks` is in the `supabase_realtime` publication). Today actions return the row (`TODAY_TASK_COLUMNS`) and do NOT `revalidatePath` — ticking never re-renders the page.
+- Realtime: call `supabase.realtime.setAuth(token)` before `subscribe()`, otherwise RLS evaluates as anon and no events arrive. Ignore echoes for ids in flight.
+- Sections (spec order): Cố định → Đến hạn hôm nay → Quá hạn → Việc đang tồn → Sắp tới (collapsed) → Đã xong (collapsed). Fixed tasks stay in their section when done; completed ad-hoc cards settle 700ms before moving.
+- Cards stay minimal (checkbox · title · deadline · 1-line note); details/edit/notes open in a sheet. Interaction animations 150–250ms.
+- `Dialog` renders as a bottom sheet below `sm`. `Fab` adds its own bottom spacer; use `extended` for the screen's primary action.
+
 ## Database
 - Every schema change goes through a migration: `npm run db:new <name>` → edit SQL in `supabase/migrations/` → `npm run db:reset` → `npm run db:types`.
 - Never change the database by hand (Studio/SQL editor) without a matching migration.

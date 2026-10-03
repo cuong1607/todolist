@@ -1,14 +1,16 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { TODAY_TASK_COLUMNS, type TodayTask } from "./task-types";
 
-export type TaskActionResult = { ok: true } | { ok: false; error: string };
+export type TaskActionResult = { ok: true; task: TodayTask } | { ok: false; error: string };
 
 // Which tasks a user may touch is decided by RLS + the guard trigger
 // (own tasks; FIXED: today only, completed/employee_note; ADHOC: any day). We just pass the intent.
+// No revalidatePath: the Today screen owns its state (optimistic + Realtime), so ticking
+// never re-renders the page.
 
 export async function setTaskDone(taskId: string, done: boolean): Promise<TaskActionResult> {
   await requireUser();
@@ -19,11 +21,11 @@ export async function setTaskDone(taskId: string, done: boolean): Promise<TaskAc
     .from("tasks")
     .update({ completed: done })
     .eq("id", taskId)
-    .select("id");
-  if (error || data.length === 0) return { ok: false, error: userMessage(error, "Không cập nhật được") };
+    .select(TODAY_TASK_COLUMNS)
+    .maybeSingle();
+  if (error || !data) return { ok: false, error: userMessage(error, "Không cập nhật được") };
 
-  revalidatePath("/today");
-  return { ok: true };
+  return { ok: true, task: data };
 }
 
 const noteSchema = z
@@ -44,11 +46,11 @@ export async function saveTaskNote(taskId: string, note: string): Promise<TaskAc
     .from("tasks")
     .update({ employee_note: parsed.data })
     .eq("id", id.data)
-    .select("id");
-  if (error || data.length === 0) return { ok: false, error: userMessage(error, "Không lưu được ghi chú") };
+    .select(TODAY_TASK_COLUMNS)
+    .maybeSingle();
+  if (error || !data) return { ok: false, error: userMessage(error, "Không lưu được ghi chú") };
 
-  revalidatePath("/today");
-  return { ok: true };
+  return { ok: true, task: data };
 }
 
 /** Guard-trigger errors (42501) carry a Vietnamese message meant for users; hide anything else. */
