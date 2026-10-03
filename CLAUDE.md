@@ -15,6 +15,9 @@ Internal task manager for a ~6-person team. Roadmap and product principles: [doc
 - Supabase: `@/lib/supabase/client` in Client Components, `@/lib/supabase/server` on the server.
 - `@/lib/supabase/admin` (secret key, bypasses RLS) is ONLY for Auth admin calls (create user, ban) after `requireAdmin()`. Never use it for business data.
 - Authorization is enforced by RLS in Postgres; UI checks are convenience only.
+- Validate all external input (forms, Server Function args) with Zod.
+- Animations: `motion/react`; keep them short (≤ 300–400ms) and subtle.
+- Add UI components with `npx shadcn@latest add <name>`.
 
 ## Auth
 - Current user: `getCurrentProfile()` / `requireUser()` / `requireAdmin()` from `@/lib/auth`. The user id always comes from the session (`getClaims`) — never accept a user id from the client for "who am I".
@@ -26,18 +29,19 @@ Internal task manager for a ~6-person team. Roadmap and product principles: [doc
 - Profile column guard trigger blocks clients from changing `role`/`active` (non-admin), `email`, `zalo_*`. Zalo fields are written server-side only.
 
 ## Tasks
-- `fixed_task_templates` (admin-only definitions) → `tasks` (per-day instances, `type` FIXED/ADHOC). FIXED rows are created ONLY by `private.generate_fixed_tasks(date)`.
-- Generation is idempotent via `unique (template_id, task_date)` + `on conflict do nothing`. pg_cron job `generate-fixed-tasks` runs `5 17 * * *` UTC = 00:05 Asia/Bangkok. Admin actions call `ensure_today_fixed_tasks()` so new templates show today.
-- Tasks snapshot title/note/due_at/sort_order at generation; template edits never rewrite existing tasks.
-- `tasks.template_id` is `on delete restrict`: templates with history can't be hard-deleted — disable (`active = false`).
-- `private.guard_task_update()`: clients may only change `status` and `employee_note` (only if `allow_employee_note`); employees only on today's tasks. `completed_at/by` are stamped by the trigger.
-- Timezone: `private.app_timezone()` in SQL and `APP_TIMEZONE` in `@/lib/time` — keep in sync. Use `todayLocal()` for `task_date` in the app.
-- ADHOC tasks: created by the employee for themselves only (`guard_task_insert` forces assignee/date/creator from the session — never send `assignee_id`). Owner may edit `title`/`note`/`due_at` on any day; nobody deletes. `due_at` is the deadline (spec name: `deadline_at`); no time picked = 23:59 local.
-- Unfinished ADHOC tasks carry over: the Today query is "today's FIXED + all open ADHOC + ADHOC completed today". `task_date` on ADHOC is just the creation date.
+Schema (Phase 3): `fixed_task_templates`, `tasks`, `task_history`, `notification_settings`, `notification_logs`, `system_settings`.
+- `fixed_task_templates` (admin-only: `default_note`, `days_of_week` ISO 1–7, `effective_from`/`effective_to`) → `tasks` (`type` FIXED/ADHOC). FIXED rows are created ONLY by `private.generate_fixed_tasks(date)`.
+- Generation is idempotent via `unique (fixed_template_id, task_date)` + `on conflict do nothing`. pg_cron job `generate-fixed-tasks` runs `5 17 * * *` UTC = 00:05 Asia/Bangkok. Admin actions call `ensure_today_fixed_tasks()` so new templates show today.
+- FIXED tasks snapshot title/note/deadline_at/sort_order at generation; template edits never rewrite existing tasks.
+- `tasks.fixed_template_id` is `on delete restrict`: templates with history can't be hard-deleted — disable (`active = false`).
+- Stored state is only `completed` (+ `completed_at/by`, stamped by trigger). `task_date` is set for FIXED, null for ADHOC (enforced by check).
+- `private.guard_task_update()`: FIXED — clients change only `completed` and `employee_note` (if `allow_employee_note`), employees only on today's task. ADHOC — owner may also edit `title`/`note`/`deadline_at` on any day. Nobody deletes tasks.
+- ADHOC: employees create for themselves only (`guard_task_insert` forces assignee/creator from the session — never send `assignee_id`). No time picked = 23:59 local.
+- Unfinished ADHOC tasks carry over: Today = "today's FIXED + all open ADHOC + ADHOC completed today". Carry-over label uses `created_at`.
 - Display status (UPCOMING/TODAY/OVERDUE/COMPLETED) is derived, never stored: SQL `public.display_status(tasks)` (computed column) and TS `deriveStatus()` in `@/lib/task-status` — keep both in sync. No deadline → never overdue ("Việc đang tồn").
-- Validate all external input (forms, Server Function args) with Zod.
-- Animations: `motion/react`; keep them short (≤ 300–400ms) and subtle.
-- Add UI components with `npx shadcn@latest add <name>`.
+- `task_history` is written only by the `log_task_change` trigger (CREATED/UPDATED/RESCHEDULED/COMPLETED/REOPENED, changed fields only; `actor_id` null = system). Read-only for clients.
+- `notification_settings` row per profile (auto-created); `profiles.notification_enabled` is the master switch. `notification_logs` are written by server jobs only — use `dedupe_key` to make sends idempotent. `system_settings`: members read, admins write.
+- Timezone: `private.app_timezone()` in SQL and `APP_TIMEZONE` in `@/lib/time` — keep in sync. Use `todayLocal()` for `task_date` in the app.
 
 ## Database
 - Every schema change goes through a migration: `npm run db:new <name>` → edit SQL in `supabase/migrations/` → `npm run db:reset` → `npm run db:types`.
@@ -60,6 +64,6 @@ Internal task manager for a ~6-person team. Roadmap and product principles: [doc
 - `npm run db:reset` — rebuild local DB from migrations + seed
 - `npm run db:types` — regenerate `src/types/database.ts`
 - `npm run test:rls` — RLS checks via the Data API (needs `db:reset` seed). Run after every migration touching policies.
-- `npm run test:db` — pgTAP tests in `supabase/tests/` (generation, idempotency, snapshots)
+- `npm run test:db` — pgTAP tests in `supabase/tests/` (schema, generation, idempotency, history, ad-hoc rules)
 - `npm run test:e2e` — browser auth flow via installed Edge (app must be running; set `E2E_BASE_URL`)
 - Seed accounts (local only, password `Password123!`): `admin@team.local`, `an@team.local`, `binh@team.local`

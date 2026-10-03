@@ -76,9 +76,20 @@ Hai loại công việc chính:
 - [x] `npm run test:rls` (17 check qua Data API), `npm run test:e2e` (17 check trên trình duyệt)
 - [ ] Policy cho report/settings: làm cùng bảng tương ứng ở phase sau (dùng `private.is_admin()`)
 
-## Phase 3
+## Phase 3. Database Core Schema
 
-- [ ] Chưa nhận spec. Bảng `tasks` (Phase 4) đã có `type = 'ADHOC'` để dùng lại.
+Làm sau Phase 4–5 (spec đến sau) — migration `20261003040000_core_schema.sql` chốt lại schema:
+
+- [x] Đổi tên cột theo spec: `default_note`, `days_of_week`, `fixed_template_id`, `deadline_at`; `status` → `completed` (boolean)
+- [x] `fixed_task_templates.effective_from` / `effective_to` (generator tôn trọng khoảng hiệu lực)
+- [x] `tasks.task_date` nullable: có cho FIXED, null cho ADHOC (check constraint)
+- [x] `task_history`: trigger ghi mọi thay đổi (CREATED/UPDATED/RESCHEDULED/COMPLETED/REOPENED), chỉ đọc với client
+- [x] `notification_settings` (1 dòng/thành viên, tự tạo), `notification_logs` (server ghi, `dedupe_key` chống gửi trùng), `system_settings` (key/value)
+- [x] Index: `tasks.assignee_id`, `task_date`, `deadline_at`, `completed`, `type`; `fixed_task_templates.assignee_id`; + history/log
+- [x] Unique `(fixed_template_id, task_date)` — không sinh trùng
+- [x] RLS bật trên mọi bảng public (có test)
+- [x] Test: `test:db` (75), `test:rls` (70), `test:e2e` (40)
+- [ ] UI cho `effective_from/to`, cài đặt thông báo, system settings: làm ở phase tương ứng
 
 ## Phase 4. Fixed Task Management
 

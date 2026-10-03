@@ -7,6 +7,11 @@ export function todayLocal(now = new Date()) {
   return new Intl.DateTimeFormat("en-CA", { timeZone: APP_TIMEZONE }).format(now);
 }
 
+/** Local date (YYYY-MM-DD) of a timestamptz in the app timezone. */
+export function localDateOf(iso: string) {
+  return todayLocal(new Date(iso));
+}
+
 /** "17:30" for a timestamptz, shown in the app timezone. */
 export function formatTimeLocal(iso: string) {
   return new Intl.DateTimeFormat("vi-VN", {

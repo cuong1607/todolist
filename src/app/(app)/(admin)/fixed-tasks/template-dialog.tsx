@@ -69,7 +69,7 @@ type FormProps = {
 };
 
 function TemplateForm({ action, pending, error, assigneeId, template, onDeleted }: FormProps) {
-  const [weekdays, setWeekdays] = useState<number[]>(template?.weekdays ?? DEFAULT_WEEKDAYS);
+  const [weekdays, setWeekdays] = useState<number[]>(template?.days_of_week ?? DEFAULT_WEEKDAYS);
   const [allowNote, setAllowNote] = useState(template?.allow_employee_note ?? false);
   const [deleting, startDelete] = useTransition();
 
@@ -119,7 +119,7 @@ function TemplateForm({ action, pending, error, assigneeId, template, onDeleted 
           name="note"
           rows={3}
           maxLength={2000}
-          defaultValue={template?.note ?? ""}
+          defaultValue={template?.default_note ?? ""}
           placeholder="Nhân viên sẽ thấy hướng dẫn này trong việc hằng ngày"
           className="w-full rounded-lg border border-input bg-transparent px-3 py-2.5 text-base outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
         />

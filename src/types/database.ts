@@ -7,13 +7,13 @@ export type Database = {
           Tables: {
             "fixed_task_templates": {
                   Row: {
-                    "active": boolean,"allow_employee_note": boolean,"assignee_id": string,"created_at": string,"created_by": string | null,"due_time": string | null,"id": string,"note": string | null,"sort_order": number,"title": string,"updated_at": string,"weekdays": (number)[]
+                    "active": boolean,"allow_employee_note": boolean,"assignee_id": string,"created_at": string,"created_by": string | null,"days_of_week": (number)[],"default_note": string | null,"due_time": string | null,"effective_from": string,"effective_to": string | null,"id": string,"sort_order": number,"title": string,"updated_at": string
                   }
                   Insert: {
-                    "active"?: boolean,"allow_employee_note"?: boolean,"assignee_id": string,"created_at"?: string,"created_by"?: string | null,"due_time"?: string | null,"id"?: string,"note"?: string | null,"sort_order"?: number,"title": string,"updated_at"?: string,"weekdays"?: (number)[]
+                    "active"?: boolean,"allow_employee_note"?: boolean,"assignee_id": string,"created_at"?: string,"created_by"?: string | null,"days_of_week"?: (number)[],"default_note"?: string | null,"due_time"?: string | null,"effective_from"?: string,"effective_to"?: string | null,"id"?: string,"sort_order"?: number,"title": string,"updated_at"?: string
                   }
                   Update: {
-                    "active"?: boolean,"allow_employee_note"?: boolean,"assignee_id"?: string,"created_at"?: string,"created_by"?: string | null,"due_time"?: string | null,"id"?: string,"note"?: string | null,"sort_order"?: number,"title"?: string,"updated_at"?: string,"weekdays"?: (number)[]
+                    "active"?: boolean,"allow_employee_note"?: boolean,"assignee_id"?: string,"created_at"?: string,"created_by"?: string | null,"days_of_week"?: (number)[],"default_note"?: string | null,"due_time"?: string | null,"effective_from"?: string,"effective_to"?: string | null,"id"?: string,"sort_order"?: number,"title"?: string,"updated_at"?: string
                   }
                   Relationships: [
                     {
@@ -26,6 +26,50 @@ isOneToOne: false
       foreignKeyName: "fixed_task_templates_created_by_fkey"
       columns: ["created_by"]
 isOneToOne: false
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"notification_logs": {
+                  Row: {
+                    "channel": Database["public"]['Enums']["notification_channel"],"created_at": string,"dedupe_key": string | null,"error": string | null,"id": number,"kind": string,"payload": Json | null,"sent_at": string | null,"status": Database["public"]['Enums']["notification_status"],"task_id": string | null,"user_id": string
+                  }
+                  Insert: {
+                    "channel": Database["public"]['Enums']["notification_channel"],"created_at"?: string,"dedupe_key"?: string | null,"error"?: string | null,"id"?: never,"kind": string,"payload"?: Json | null,"sent_at"?: string | null,"status"?: Database["public"]['Enums']["notification_status"],"task_id"?: string | null,"user_id": string
+                  }
+                  Update: {
+                    "channel"?: Database["public"]['Enums']["notification_channel"],"created_at"?: string,"dedupe_key"?: string | null,"error"?: string | null,"id"?: never,"kind"?: string,"payload"?: Json | null,"sent_at"?: string | null,"status"?: Database["public"]['Enums']["notification_status"],"task_id"?: string | null,"user_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "notification_logs_task_id_fkey"
+      columns: ["task_id"]
+isOneToOne: false
+      referencedRelation: "tasks"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "notification_logs_user_id_fkey"
+      columns: ["user_id"]
+isOneToOne: false
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"notification_settings": {
+                  Row: {
+                    "created_at": string,"daily_summary_enabled": boolean,"daily_summary_time": string,"deadline_reminder_enabled": boolean,"overdue_alert_enabled": boolean,"remind_before_minutes": number,"updated_at": string,"user_id": string
+                  }
+                  Insert: {
+                    "created_at"?: string,"daily_summary_enabled"?: boolean,"daily_summary_time"?: string,"deadline_reminder_enabled"?: boolean,"overdue_alert_enabled"?: boolean,"remind_before_minutes"?: number,"updated_at"?: string,"user_id": string
+                  }
+                  Update: {
+                    "created_at"?: string,"daily_summary_enabled"?: boolean,"daily_summary_time"?: string,"deadline_reminder_enabled"?: boolean,"overdue_alert_enabled"?: boolean,"remind_before_minutes"?: number,"updated_at"?: string,"user_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "notification_settings_user_id_fkey"
+      columns: ["user_id"]
+isOneToOne: true
       referencedRelation: "profiles"
       referencedColumns: ["id"]
     }
@@ -43,15 +87,59 @@ isOneToOne: false
                   Relationships: [
                     
                   ]
-                },"tasks": {
+                },"system_settings": {
                   Row: {
-                    "allow_employee_note": boolean,"assignee_id": string,"completed_at": string | null,"completed_by": string | null,"created_at": string,"created_by": string | null,"due_at": string | null,"employee_note": string | null,"id": string,"note": string | null,"sort_order": number,"status": Database["public"]['Enums']["task_status"],"task_date": string,"template_id": string | null,"title": string,"type": Database["public"]['Enums']["task_type"],"updated_at": string,"display_status": Database["public"]['Enums']["task_display_status"] | null
+                    "description": string | null,"key": string,"updated_at": string,"updated_by": string | null,"value": NonNullable<Json>
                   }
                   Insert: {
-                    "allow_employee_note"?: boolean,"assignee_id"?: string,"completed_at"?: string | null,"completed_by"?: string | null,"created_at"?: string,"created_by"?: string | null,"due_at"?: string | null,"employee_note"?: string | null,"id"?: string,"note"?: string | null,"sort_order"?: number,"status"?: Database["public"]['Enums']["task_status"],"task_date"?: string,"template_id"?: string | null,"title": string,"type": Database["public"]['Enums']["task_type"],"updated_at"?: string
+                    "description"?: string | null,"key": string,"updated_at"?: string,"updated_by"?: string | null,"value": NonNullable<Json>
                   }
                   Update: {
-                    "allow_employee_note"?: boolean,"assignee_id"?: string,"completed_at"?: string | null,"completed_by"?: string | null,"created_at"?: string,"created_by"?: string | null,"due_at"?: string | null,"employee_note"?: string | null,"id"?: string,"note"?: string | null,"sort_order"?: number,"status"?: Database["public"]['Enums']["task_status"],"task_date"?: string,"template_id"?: string | null,"title"?: string,"type"?: Database["public"]['Enums']["task_type"],"updated_at"?: string
+                    "description"?: string | null,"key"?: string,"updated_at"?: string,"updated_by"?: string | null,"value"?: NonNullable<Json>
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "system_settings_updated_by_fkey"
+      columns: ["updated_by"]
+isOneToOne: false
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"task_history": {
+                  Row: {
+                    "action": Database["public"]['Enums']["task_action"],"actor_id": string | null,"created_at": string,"id": number,"new_data": Json | null,"old_data": Json | null,"task_id": string
+                  }
+                  Insert: {
+                    "action": Database["public"]['Enums']["task_action"],"actor_id"?: string | null,"created_at"?: string,"id"?: never,"new_data"?: Json | null,"old_data"?: Json | null,"task_id": string
+                  }
+                  Update: {
+                    "action"?: Database["public"]['Enums']["task_action"],"actor_id"?: string | null,"created_at"?: string,"id"?: never,"new_data"?: Json | null,"old_data"?: Json | null,"task_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "task_history_actor_id_fkey"
+      columns: ["actor_id"]
+isOneToOne: false
+      referencedRelation: "profiles"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "task_history_task_id_fkey"
+      columns: ["task_id"]
+isOneToOne: false
+      referencedRelation: "tasks"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"tasks": {
+                  Row: {
+                    "allow_employee_note": boolean,"assignee_id": string,"completed": boolean,"completed_at": string | null,"completed_by": string | null,"created_at": string,"created_by": string | null,"deadline_at": string | null,"employee_note": string | null,"fixed_template_id": string | null,"id": string,"note": string | null,"sort_order": number,"task_date": string | null,"title": string,"type": Database["public"]['Enums']["task_type"],"updated_at": string,"display_status": Database["public"]['Enums']["task_display_status"] | null
+                  }
+                  Insert: {
+                    "allow_employee_note"?: boolean,"assignee_id"?: string,"completed"?: boolean,"completed_at"?: string | null,"completed_by"?: string | null,"created_at"?: string,"created_by"?: string | null,"deadline_at"?: string | null,"employee_note"?: string | null,"fixed_template_id"?: string | null,"id"?: string,"note"?: string | null,"sort_order"?: number,"task_date"?: string | null,"title": string,"type": Database["public"]['Enums']["task_type"],"updated_at"?: string
+                  }
+                  Update: {
+                    "allow_employee_note"?: boolean,"assignee_id"?: string,"completed"?: boolean,"completed_at"?: string | null,"completed_by"?: string | null,"created_at"?: string,"created_by"?: string | null,"deadline_at"?: string | null,"employee_note"?: string | null,"fixed_template_id"?: string | null,"id"?: string,"note"?: string | null,"sort_order"?: number,"task_date"?: string | null,"title"?: string,"type"?: Database["public"]['Enums']["task_type"],"updated_at"?: string
                   }
                   Relationships: [
                     {
@@ -74,7 +162,7 @@ isOneToOne: false
       referencedColumns: ["id"]
     },{
       foreignKeyName: "tasks_template_id_fkey"
-      columns: ["template_id"]
+      columns: ["fixed_template_id"]
 isOneToOne: false
       referencedRelation: "fixed_task_templates"
       referencedColumns: ["id"]
@@ -100,7 +188,7 @@ isOneToOne: false
                            }
           }
           Enums: {
-            "app_role": "ADMIN"|"EMPLOYEE","task_display_status": "UPCOMING"|"TODAY"|"OVERDUE"|"COMPLETED","task_status": "TODO"|"DONE","task_type": "FIXED"|"ADHOC"
+            "app_role": "ADMIN"|"EMPLOYEE","notification_channel": "ZALO"|"IN_APP","notification_status": "PENDING"|"SENT"|"FAILED"|"SKIPPED","task_action": "CREATED"|"UPDATED"|"RESCHEDULED"|"COMPLETED"|"REOPENED","task_display_status": "UPCOMING"|"TODAY"|"OVERDUE"|"COMPLETED","task_type": "FIXED"|"ADHOC"
           }
           CompositeTypes: {
             [_ in never]: never
@@ -216,7 +304,7 @@ export type CompositeTypes<
 export const Constants = {
   "public": {
           Enums: {
-            "app_role": ["ADMIN", "EMPLOYEE"],"task_display_status": ["UPCOMING", "TODAY", "OVERDUE", "COMPLETED"],"task_status": ["TODO", "DONE"],"task_type": ["FIXED", "ADHOC"]
+            "app_role": ["ADMIN", "EMPLOYEE"],"notification_channel": ["ZALO", "IN_APP"],"notification_status": ["PENDING", "SENT", "FAILED", "SKIPPED"],"task_action": ["CREATED", "UPDATED", "RESCHEDULED", "COMPLETED", "REOPENED"],"task_display_status": ["UPCOMING", "TODAY", "OVERDUE", "COMPLETED"],"task_type": ["FIXED", "ADHOC"]
           }
         }
 } as const

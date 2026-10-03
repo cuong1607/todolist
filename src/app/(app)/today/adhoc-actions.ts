@@ -19,7 +19,7 @@ const adhocSchema = z
   })
   .transform(({ due_date, due_time, ...rest }) => ({
     ...rest,
-    due_at: due_date ? toDeadlineISO(due_date, due_time) : null,
+    deadline_at: due_date ? toDeadlineISO(due_date, due_time) : null,
   }));
 
 function parse(formData: FormData) {

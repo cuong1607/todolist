@@ -9,7 +9,7 @@ const templateSchema = z.object({
   id: z.uuid().optional(),
   assignee_id: z.uuid(),
   title: z.string().trim().min(1, "Vui lòng nhập tên công việc").max(200, "Tối đa 200 ký tự"),
-  note: z
+  default_note: z
     .string()
     .trim()
     .max(2000, "Ghi chú tối đa 2000 ký tự")
@@ -20,7 +20,7 @@ const templateSchema = z.object({
     .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Giờ không hợp lệ")
     .or(z.literal(""))
     .transform((v) => v || null),
-  weekdays: z
+  days_of_week: z
     .array(z.coerce.number().int().min(1).max(7))
     .min(1, "Chọn ít nhất một ngày trong tuần")
     .transform((days) => [...new Set(days)].sort()),
@@ -35,10 +35,10 @@ export async function saveTemplate(_prev: TemplateFormState, formData: FormData)
     id: formData.get("id") || undefined,
     assignee_id: formData.get("assignee_id"),
     title: formData.get("title"),
-    note: formData.get("note") ?? "",
+    default_note: formData.get("note") ?? "",
     allow_employee_note: formData.get("allow_employee_note") === "on",
     due_time: formData.get("due_time") ?? "",
-    weekdays: formData.getAll("weekdays"),
+    days_of_week: formData.getAll("weekdays"),
   });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message };
   const { id, ...values } = parsed.data;
@@ -47,10 +47,10 @@ export async function saveTemplate(_prev: TemplateFormState, formData: FormData)
 
   if (id) {
     // assignee is fixed once created — reassigning would break the history's meaning.
-    const { title, note, allow_employee_note, due_time, weekdays } = values;
+    const { title, default_note, allow_employee_note, due_time, days_of_week } = values;
     const { error } = await supabase
       .from("fixed_task_templates")
-      .update({ title, note, allow_employee_note, due_time, weekdays })
+      .update({ title, default_note, allow_employee_note, due_time, days_of_week })
       .eq("id", id);
     if (error) return { error: "Không lưu được. Thử lại sau." };
   } else {

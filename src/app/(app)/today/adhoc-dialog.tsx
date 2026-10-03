@@ -38,8 +38,8 @@ type DueMode = "none" | "today" | "tomorrow" | "pick";
 
 function initialDue(task: TodayTask | null): { mode: DueMode; date: string; time: string } {
   const today = todayLocal();
-  if (!task?.due_at) return { mode: "none", date: today, time: "" };
-  const { date, time } = fromDeadlineISO(task.due_at);
+  if (!task?.deadline_at) return { mode: "none", date: today, time: "" };
+  const { date, time } = fromDeadlineISO(task.deadline_at);
   const mode: DueMode = date === today ? "today" : date === addDays(today, 1) ? "tomorrow" : "pick";
   return { mode, date, time };
 }

@@ -25,21 +25,21 @@ select is((select count(*)::int from tasks where task_date = '2030-01-07'), 5, '
 select is(private.generate_fixed_tasks('2030-01-08'), 4, 'Tuesday: Mon/Wed/Fri template is skipped');
 
 select ok(
-  (select bool_and(type = 'FIXED' and status = 'TODO' and template_id is not null) from tasks where task_date = '2030-01-07'),
+  (select bool_and(type = 'FIXED' and not completed and fixed_template_id is not null) from tasks where task_date = '2030-01-07'),
   'generated tasks are FIXED / TODO / linked to template'
 );
 
 -- due_time is local (Asia/Bangkok, UTC+7): 09:00 local = 02:00 UTC
 select is(
-  (select due_at from tasks where task_date = '2030-01-07' and title = 'Kiểm tra đơn hàng mới'),
+  (select deadline_at from tasks where task_date = '2030-01-07' and title = 'Kiểm tra đơn hàng mới'),
   '2030-01-07 02:00:00+00'::timestamptz,
-  'due_at = task_date + due_time in Asia/Bangkok'
+  'deadline_at = task_date + due_time in Asia/Bangkok'
 );
 
 -- ---------- snapshot: editing a template never rewrites history ----------
-update fixed_task_templates set title = 'Tiêu đề mới', note = 'Ghi chú mới' where title = 'Kiểm tra đơn hàng mới';
+update fixed_task_templates set title = 'Tiêu đề mới', default_note = 'Ghi chú mới' where title = 'Kiểm tra đơn hàng mới';
 select is(
-  (select title from tasks where task_date = '2030-01-07' and template_id = (select id from fixed_task_templates where title = 'Tiêu đề mới')),
+  (select title from tasks where task_date = '2030-01-07' and fixed_template_id = (select id from fixed_task_templates where title = 'Tiêu đề mới')),
   'Kiểm tra đơn hàng mới',
   'existing task keeps its title snapshot after template edit'
 );

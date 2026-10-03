@@ -18,13 +18,13 @@ export default async function TodayPage() {
   const { data: tasks, error } = await supabase
     .from("tasks")
     .select(
-      "id, type, title, note, allow_employee_note, employee_note, due_at, status, completed_at, task_date, sort_order, created_at",
+      "id, type, title, note, allow_employee_note, employee_note, deadline_at, completed, completed_at, task_date, sort_order, created_at",
     )
     .eq("assignee_id", me.id)
     .or(
       [
         `and(type.eq.FIXED,task_date.eq.${today})`,
-        "and(type.eq.ADHOC,status.eq.TODO)",
+        "and(type.eq.ADHOC,completed.is.false)",
         `and(type.eq.ADHOC,completed_at.gte.${startOfDayISO(today)})`,
       ].join(","),
     )

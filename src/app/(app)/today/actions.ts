@@ -8,7 +8,7 @@ import { createClient } from "@/lib/supabase/server";
 export type TaskActionResult = { ok: true } | { ok: false; error: string };
 
 // Which tasks a user may touch is decided by RLS + the guard trigger
-// (own tasks; FIXED: today only, status/employee_note; ADHOC: any day). We just pass the intent.
+// (own tasks; FIXED: today only, completed/employee_note; ADHOC: any day). We just pass the intent.
 
 export async function setTaskDone(taskId: string, done: boolean): Promise<TaskActionResult> {
   await requireUser();
@@ -17,7 +17,7 @@ export async function setTaskDone(taskId: string, done: boolean): Promise<TaskAc
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("tasks")
-    .update({ status: done ? "DONE" : "TODO" })
+    .update({ completed: done })
     .eq("id", taskId)
     .select("id");
   if (error || data.length === 0) return { ok: false, error: userMessage(error, "Không cập nhật được") };

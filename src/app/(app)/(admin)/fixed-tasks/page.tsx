@@ -42,7 +42,7 @@ export default async function FixedTasksPage({ searchParams }: PageProps<"/fixed
 
   const { data: rows } = await supabase
     .from("fixed_task_templates")
-    .select("id, title, note, allow_employee_note, due_time, weekdays, sort_order, active, tasks(count)")
+    .select("id, title, default_note, allow_employee_note, due_time, days_of_week, sort_order, active, tasks(count)")
     .eq("assignee_id", selected.id)
     .order("sort_order")
     .order("created_at");

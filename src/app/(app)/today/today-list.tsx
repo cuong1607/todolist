@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/empty-state";
 import { Fab } from "@/components/shell/fab";
 import { deriveStatus, type DisplayStatus } from "@/lib/task-status";
-import { formatDay, formatDeadline, formatTimeLocal, todayLocal } from "@/lib/time";
+import { formatDay, formatDeadline, formatTimeLocal, localDateOf, todayLocal } from "@/lib/time";
 import { transition } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import type { Tables } from "@/types/database";
@@ -23,8 +23,8 @@ export type TodayTask = Pick<
   | "note"
   | "allow_employee_note"
   | "employee_note"
-  | "due_at"
-  | "status"
+  | "deadline_at"
+  | "completed"
   | "completed_at"
   | "task_date"
   | "sort_order"
@@ -50,12 +50,12 @@ function sectionOf(task: TodayTask, status: DisplayStatus): SectionKey {
     case "UPCOMING":
       return "upcoming";
     case "TODAY":
-      return task.type === "ADHOC" && !task.due_at ? "backlog" : "today";
+      return task.type === "ADHOC" && !task.deadline_at ? "backlog" : "today";
   }
 }
 
 const byDue = (a: TodayTask, b: TodayTask) =>
-  (a.due_at ?? "9999").localeCompare(b.due_at ?? "9999") || a.sort_order - b.sort_order || a.created_at.localeCompare(b.created_at);
+  (a.deadline_at ?? "9999").localeCompare(b.deadline_at ?? "9999") || a.sort_order - b.sort_order || a.created_at.localeCompare(b.created_at);
 
 /** "Hôm qua" → "hôm qua" mid-sentence; leave "T5, 1/10" alone. */
 const lowerRelative = (label: string) => (/^(Hôm|Ngày)/.test(label) ? label.toLowerCase() : label);
@@ -75,7 +75,7 @@ export function TodayList({ tasks }: { tasks: TodayTask[] }) {
   const [optimistic, setOptimistic] = useOptimistic(tasks, (state, update: { id: string; done: boolean }) =>
     state.map((t) =>
       t.id === update.id
-        ? { ...t, status: update.done ? ("DONE" as const) : ("TODO" as const), completed_at: update.done ? new Date().toISOString() : null }
+        ? { ...t, completed: update.done, completed_at: update.done ? new Date().toISOString() : null }
         : t,
     ),
   );
@@ -98,7 +98,7 @@ export function TodayList({ tasks }: { tasks: TodayTask[] }) {
   const total = done + sections.overdue.length + sections.today.length;
 
   function toggle(task: TodayTask) {
-    const next = task.status !== "DONE";
+    const next = !task.completed;
     startTransition(async () => {
       setOptimistic({ id: task.id, done: next });
       const result = await setTaskDone(task.id, next);
@@ -215,7 +215,8 @@ type TaskCardProps = {
 function TaskCard({ task, status, now, onToggle, onEdit }: TaskCardProps) {
   const done = status === "COMPLETED";
   const overdue = status === "OVERDUE";
-  const carriedOver = task.type === "ADHOC" && !done && task.task_date < todayLocal(now);
+  const createdOn = localDateOf(task.created_at);
+  const carriedOver = task.type === "ADHOC" && !done && createdOn < todayLocal(now);
 
   const body = (
     <>
@@ -229,17 +230,17 @@ function TaskCard({ task, status, now, onToggle, onEdit }: TaskCardProps) {
             Cố định
           </span>
         )}
-        {task.due_at && (
+        {task.deadline_at && (
           <span className={cn("flex items-center gap-1", overdue && "font-medium text-danger")}>
             <Clock className="size-3.5" />
             {overdue && "Quá hạn · "}
-            {task.type === "FIXED" ? `Trước ${formatTimeLocal(task.due_at)}` : formatDeadline(task.due_at, now)}
+            {task.type === "FIXED" ? `Trước ${formatTimeLocal(task.deadline_at)}` : formatDeadline(task.deadline_at, now)}
           </span>
         )}
         {carriedOver && (
           <span className="flex items-center gap-1 text-warning-soft-foreground">
             <History className="size-3.5" />
-            Tồn từ {lowerRelative(formatDay(task.task_date, now))}
+            Tồn từ {lowerRelative(formatDay(createdOn, now))}
           </span>
         )}
         {done && task.completed_at && <span>Xong lúc {formatTimeLocal(task.completed_at)}</span>}

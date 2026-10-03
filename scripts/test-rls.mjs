@@ -130,30 +130,30 @@ async function signIn(email) {
   const { data: peek } = await an.from("tasks").select("*").eq("id", binhTaskId);
   check("employee cannot read another employee's task by id", peek?.length === 0, peek);
 
-  const { data: hijack } = await an.from("tasks").update({ status: "DONE" }).eq("id", binhTaskId).select();
+  const { data: hijack } = await an.from("tasks").update({ completed: true }).eq("id", binhTaskId).select();
   check("employee cannot complete another employee's task", (hijack ?? []).length === 0, hijack);
 
   const noNoteTask = myTasks.find((t) => !t.allow_employee_note);
   const noteTask = myTasks.find((t) => t.allow_employee_note);
 
   const { data: completed, error: completeErr } = await an
-    .from("tasks").update({ status: "DONE" }).eq("id", noNoteTask.id).select("status, completed_at, completed_by");
+    .from("tasks").update({ completed: true }).eq("id", noNoteTask.id).select("completed, completed_at, completed_by");
   check(
     "employee completes own task; completion stamped server-side",
-    completed?.[0]?.status === "DONE" && completed[0].completed_at && completed[0].completed_by === AN,
+    completed?.[0]?.completed === true && completed[0].completed_at && completed[0].completed_by === AN,
     completeErr ?? completed,
   );
 
   const { data: reopened } = await an
-    .from("tasks").update({ status: "TODO" }).eq("id", noNoteTask.id).select("status, completed_at");
-  check("employee can reopen own task", reopened?.[0]?.status === "TODO" && reopened[0].completed_at === null, reopened);
+    .from("tasks").update({ completed: false }).eq("id", noNoteTask.id).select("completed, completed_at");
+  check("employee can reopen own task", reopened?.[0]?.completed === false && reopened[0].completed_at === null, reopened);
 
   const { error: forgeErr } = await an
-    .from("tasks").update({ status: "DONE", completed_by: BINH }).eq("id", noNoteTask.id);
+    .from("tasks").update({ completed: true, completed_by: BINH }).eq("id", noNoteTask.id);
   check("employee cannot forge completed_by", !!forgeErr, forgeErr);
 
   for (const [field, value] of [
-    ["due_at", new Date(Date.now() + 864e5).toISOString()],
+    ["deadline_at", new Date(Date.now() + 864e5).toISOString()],
     ["task_date", "2099-01-01"],
     ["title", "Đổi tên"],
     ["assignee_id", BINH],
@@ -174,7 +174,7 @@ async function signIn(email) {
   check("employee cannot delete tasks", (deletedTask ?? []).length === 0, deletedTask);
 
   const { error: taskInsertErr } = await an
-    .from("tasks").insert({ type: "FIXED", template_id: crypto.randomUUID(), title: "Tự thêm việc cố định" });
+    .from("tasks").insert({ type: "FIXED", fixed_template_id: crypto.randomUUID(), title: "Tự thêm việc cố định" });
   check("employee cannot insert FIXED tasks", !!taskInsertErr, taskInsertErr);
 
   const { error: ensureErr } = await an.rpc("ensure_today_fixed_tasks");
@@ -184,10 +184,10 @@ async function signIn(email) {
   const { data: anTemplate } = await service.from("fixed_task_templates").select("id").eq("assignee_id", AN).limit(1).single();
   const { data: past } = await service
     .from("tasks")
-    .insert({ type: "FIXED", assignee_id: AN, template_id: anTemplate.id, task_date: "2020-01-01", title: "Việc cũ" })
+    .insert({ type: "FIXED", assignee_id: AN, fixed_template_id: anTemplate.id, task_date: "2020-01-01", title: "Việc cũ" })
     .select("id")
     .single();
-  const { error: pastErr } = await an.from("tasks").update({ status: "DONE" }).eq("id", past.id);
+  const { error: pastErr } = await an.from("tasks").update({ completed: true }).eq("id", past.id);
   check("employee cannot change a past day's task", !!pastErr, pastErr);
   await service.from("tasks").delete().eq("id", past.id);
 
@@ -201,7 +201,7 @@ async function signIn(email) {
   const { error: delErr } = await admin.from("fixed_task_templates").delete().eq("id", anTemplate.id);
   check("admin cannot hard-delete a template with history", delErr?.code === "23503", delErr);
 
-  const { error: adminDueErr } = await admin.from("tasks").update({ due_at: null }).eq("id", noNoteTask.id);
+  const { error: adminDueErr } = await admin.from("tasks").update({ deadline_at: null }).eq("id", noNoteTask.id);
   check("generated task snapshot is locked even for admin", !!adminDueErr, adminDueErr);
 
   const { error: ensureAdminErr } = await admin.rpc("ensure_today_fixed_tasks");
@@ -219,10 +219,10 @@ async function signIn(email) {
   const created = [];
 
   const { data: mine, error: createErr } = await an
-    .from("tasks").insert({ type: "ADHOC", title: "RLS quick create" }).select("id, assignee_id, created_by, status").single();
+    .from("tasks").insert({ type: "ADHOC", title: "RLS quick create" }).select("id, assignee_id, created_by, completed").single();
   check(
     "employee creates ad-hoc without sending assignee_id; it is set to self",
-    mine?.assignee_id === AN && mine.created_by === AN && mine.status === "TODO",
+    mine?.assignee_id === AN && mine.created_by === AN && mine.completed === false,
     createErr ?? mine,
   );
   if (mine) created.push(mine.id);
@@ -230,13 +230,13 @@ async function signIn(email) {
   const { error: forOtherErr } = await an.from("tasks").insert({ type: "ADHOC", title: "Cho Bình", assignee_id: BINH });
   check("employee cannot create an ad-hoc task for someone else", !!forOtherErr, forOtherErr);
 
-  const { error: doneErr } = await an.from("tasks").insert({ type: "ADHOC", title: "Đã xong sẵn", status: "DONE", completed_at: new Date().toISOString() });
+  const { error: doneErr } = await an.from("tasks").insert({ type: "ADHOC", title: "Đã xong sẵn", completed: true, completed_at: new Date().toISOString() });
   check("employee cannot create an already-completed task", !!doneErr, doneErr);
 
   const due = new Date(Date.now() + 3 * 864e5).toISOString();
   const { data: edited, error: editErr } = await an
-    .from("tasks").update({ title: "RLS renamed", note: "ghi chú", due_at: due }).eq("id", mine.id).select("title, due_at");
-  check("employee can edit and reschedule own ad-hoc", edited?.[0]?.title === "RLS renamed" && edited[0].due_at, editErr);
+    .from("tasks").update({ title: "RLS renamed", note: "ghi chú", deadline_at: due }).eq("id", mine.id).select("title, deadline_at");
+  check("employee can edit and reschedule own ad-hoc", edited?.[0]?.title === "RLS renamed" && edited[0].deadline_at, editErr);
 
   const { error: adhocNoteErr } = await an.from("tasks").update({ employee_note: "x" }).eq("id", mine.id);
   check("ad-hoc tasks use `note`, not employee_note", !!adhocNoteErr, adhocNoteErr);
@@ -245,7 +245,7 @@ async function signIn(email) {
   created.push(binhTask.id);
   const { data: peek } = await an.from("tasks").select("id").eq("id", binhTask.id);
   check("employee cannot read another employee's ad-hoc", peek?.length === 0, peek);
-  const { data: hijack } = await an.from("tasks").update({ title: "hacked", due_at: null }).eq("id", binhTask.id).select();
+  const { data: hijack } = await an.from("tasks").update({ title: "hacked", deadline_at: null }).eq("id", binhTask.id).select();
   check("employee cannot edit another employee's ad-hoc", (hijack ?? []).length === 0, hijack);
 
   const { data: del } = await an.from("tasks").delete().eq("id", mine.id).select();
@@ -254,18 +254,18 @@ async function signIn(email) {
   // Carry-over: a task created long ago stays open and workable.
   const { data: old } = await service
     .from("tasks")
-    .insert({ type: "ADHOC", assignee_id: AN, task_date: "2020-01-01", title: "Việc tồn từ 2020", created_by: AN })
+    .insert({ type: "ADHOC", assignee_id: AN, created_at: "2020-01-01T00:00:00Z", title: "Việc tồn từ 2020", created_by: AN })
     .select("id")
     .single();
   created.push(old.id);
   const { data: oldRow } = await an.from("tasks").select("id, display_status").eq("id", old.id).single();
   check("carried-over ad-hoc without deadline is visible and not overdue", oldRow?.display_status === "TODAY", oldRow);
-  const { data: oldDone, error: oldDoneErr } = await an.from("tasks").update({ status: "DONE" }).eq("id", old.id).select("status");
-  check("employee can complete a carried-over ad-hoc task", oldDone?.[0]?.status === "DONE", oldDoneErr);
+  const { data: oldDone, error: oldDoneErr } = await an.from("tasks").update({ completed: true }).eq("id", old.id).select("completed");
+  check("employee can complete a carried-over ad-hoc task", oldDone?.[0]?.completed === true, oldDoneErr);
 
   const { data: overdue } = await service
     .from("tasks")
-    .insert({ type: "ADHOC", assignee_id: AN, title: "Trễ hạn", due_at: new Date(Date.now() - 6e4).toISOString(), created_by: AN })
+    .insert({ type: "ADHOC", assignee_id: AN, title: "Trễ hạn", deadline_at: new Date(Date.now() - 6e4).toISOString(), created_by: AN })
     .select("id")
     .single();
   created.push(overdue.id);
@@ -278,6 +278,55 @@ async function signIn(email) {
   check("admin cannot rewrite an employee's ad-hoc content", !!adminEditErr, adminEditErr);
 
   await service.from("tasks").delete().in("id", created);
+}
+
+// ---------- Phase 3 tables: history, notifications, settings ----------
+{
+  const anon = newClient();
+  const an = await signIn("an@team.local");
+  const admin = await signIn("admin@team.local");
+
+  for (const table of ["task_history", "notification_settings", "notification_logs", "system_settings"]) {
+    const { data } = await anon.from(table).select("*");
+    check(`anon cannot read ${table}`, (data ?? []).length === 0, data);
+  }
+
+  const { data: myHistory } = await an.from("task_history").select("task_id, tasks!inner(assignee_id)");
+  check(
+    "employee reads history of own tasks only",
+    myHistory?.length > 0 && myHistory.every((h) => h.tasks.assignee_id === AN),
+    myHistory?.length,
+  );
+  const { data: allHistory } = await admin.from("task_history").select("id");
+  check("admin reads all history", (allHistory ?? []).length > (myHistory ?? []).length, allHistory?.length);
+
+  const { error: historyWriteErr } = await an.from("task_history").insert({ task_id: myHistory?.[0]?.task_id, action: "UPDATED" });
+  check("employee cannot write history", !!historyWriteErr, historyWriteErr);
+  const { data: historyDel } = await admin.from("task_history").delete().gt("id", 0).select();
+  check("even admin cannot delete history", (historyDel ?? []).length === 0, historyDel?.length);
+
+  const { data: mySettings } = await an.from("notification_settings").select("user_id");
+  check("employee sees only own notification settings", mySettings?.length === 1 && mySettings[0].user_id === AN, mySettings);
+  const { data: otherSettings } = await an
+    .from("notification_settings").update({ daily_summary_enabled: false }).eq("user_id", BINH).select();
+  check("employee cannot change another member's notification settings", (otherSettings ?? []).length === 0, otherSettings);
+  const { data: ownSettings, error: ownSettingsErr } = await an
+    .from("notification_settings").update({ remind_before_minutes: 45 }).eq("user_id", AN).select("remind_before_minutes");
+  check("employee updates own notification settings", ownSettings?.[0]?.remind_before_minutes === 45, ownSettingsErr);
+  await an.from("notification_settings").update({ remind_before_minutes: 30 }).eq("user_id", AN);
+  const { data: allSettings } = await admin.from("notification_settings").select("user_id");
+  check("admin reads all notification settings", allSettings?.length === 3, allSettings?.length);
+
+  const { error: logWriteErr } = await an.from("notification_logs").insert({ user_id: AN, channel: "ZALO", kind: "TEST" });
+  check("employee cannot write notification logs", !!logWriteErr, logWriteErr);
+
+  const { data: settingsRead } = await an.from("system_settings").select("key");
+  check("members read system settings", (settingsRead ?? []).some((r) => r.key === "team_name"), settingsRead);
+  const { data: settingsHack } = await an.from("system_settings").update({ value: "Hacked" }).eq("key", "team_name").select();
+  check("employee cannot change system settings", (settingsHack ?? []).length === 0, settingsHack);
+  const { data: settingsAdmin, error: settingsAdminErr } = await admin
+    .from("system_settings").update({ value: "Team Todo" }).eq("key", "team_name").select("updated_by");
+  check("admin can change system settings (updated_by stamped)", settingsAdmin?.[0]?.updated_by === ADMIN, settingsAdminErr);
 }
 
 console.log(failed ? `\n${failed} check(s) FAILED` : "\nAll RLS checks passed");

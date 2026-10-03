@@ -16,10 +16,10 @@ import { TemplateDialog } from "./template-dialog";
 export type Template = {
   id: string;
   title: string;
-  note: string | null;
+  default_note: string | null;
   allow_employee_note: boolean;
   due_time: string | null;
-  weekdays: number[];
+  days_of_week: number[];
   sort_order: number;
   active: boolean;
   /** Has generated at least one task → can be disabled but not deleted. */
@@ -163,7 +163,7 @@ function TemplateItem({ template: t, onDragEnd, onEdit, onToggle }: ItemProps) {
           <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-caption text-muted-foreground">
             <span className="flex items-center gap-1">
               <Repeat className="size-3.5" />
-              {describeWeekdays(t.weekdays)}
+              {describeWeekdays(t.days_of_week)}
             </span>
             {t.due_time && (
               <span className="flex items-center gap-1">

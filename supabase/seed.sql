@@ -34,7 +34,7 @@ from inserted;
 update public.profiles set role = 'ADMIN' where id = '00000000-0000-4000-8000-000000000001';
 
 -- Fixed task templates (every day so local testing works on any weekday)
-insert into public.fixed_task_templates (assignee_id, title, note, allow_employee_note, due_time, weekdays, sort_order, created_by)
+insert into public.fixed_task_templates (assignee_id, title, default_note, allow_employee_note, due_time, days_of_week, sort_order, created_by)
 values
   ('00000000-0000-4000-8000-000000000002', 'Kiểm tra đơn hàng mới', 'Xác nhận đơn trên hệ thống trước 9h.', false, '09:00', '{1,2,3,4,5,6,7}', 1, '00000000-0000-4000-8000-000000000001'),
   ('00000000-0000-4000-8000-000000000002', 'Đóng gói & bàn giao vận chuyển', null, false, '15:00', '{1,2,3,4,5,6,7}', 2, '00000000-0000-4000-8000-000000000001'),
@@ -47,17 +47,18 @@ select private.generate_fixed_tasks();
 
 -- Ad-hoc tasks for An, relative to now() so every status is represented after any reset:
 -- carried over from yesterday & overdue, no deadline (backlog), due later today, upcoming.
-insert into public.tasks (type, assignee_id, task_date, title, note, due_at, created_by)
+insert into public.tasks (type, assignee_id, title, note, deadline_at, created_by, created_at)
 values
-  ('ADHOC', '00000000-0000-4000-8000-000000000002', private.today_local() - 1,
+  ('ADHOC', '00000000-0000-4000-8000-000000000002',
    'Gửi báo giá cho khách Hưng Thịnh', 'Khách cần trước khi chốt đơn.',
-   ((private.today_local() - 1) + time '17:00') at time zone private.app_timezone(), '00000000-0000-4000-8000-000000000002'),
-  ('ADHOC', '00000000-0000-4000-8000-000000000002', private.today_local(),
-   'Tìm nhà cung cấp hộp carton mới', null, null, '00000000-0000-4000-8000-000000000002'),
-  ('ADHOC', '00000000-0000-4000-8000-000000000002', private.today_local(),
+   ((private.today_local() - 1) + time '17:00') at time zone private.app_timezone(), '00000000-0000-4000-8000-000000000002',
+   now() - interval '1 day'),
+  ('ADHOC', '00000000-0000-4000-8000-000000000002',
+   'Tìm nhà cung cấp hộp carton mới', null, null, '00000000-0000-4000-8000-000000000002', now()),
+  ('ADHOC', '00000000-0000-4000-8000-000000000002',
    'Gọi lại cho shipper về đơn #1024', null,
-   (private.today_local() + time '23:00') at time zone private.app_timezone(), '00000000-0000-4000-8000-000000000002'),
-  ('ADHOC', '00000000-0000-4000-8000-000000000002', private.today_local(),
+   (private.today_local() + time '23:00') at time zone private.app_timezone(), '00000000-0000-4000-8000-000000000002', now()),
+  ('ADHOC', '00000000-0000-4000-8000-000000000002',
    'Chuẩn bị hàng mẫu cho buổi chụp ảnh', 'Lấy 3 mẫu màu be.',
-   ((private.today_local() + 2) + time '10:00') at time zone private.app_timezone(), '00000000-0000-4000-8000-000000000002');
+   ((private.today_local() + 2) + time '10:00') at time zone private.app_timezone(), '00000000-0000-4000-8000-000000000002', now());
 
