@@ -3,7 +3,18 @@ import { createServerClient } from "@supabase/ssr";
 import { getPublicEnv, isSupabaseConfigured } from "@/lib/env";
 import type { Database } from "@/types/database";
 
-/** Refreshes the Supabase auth session cookie on each request. */
+/** Routes reachable without a session. */
+const PUBLIC_PATHS = ["/login", "/logout", "/api/health"];
+
+function isPublic(pathname: string) {
+  return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+}
+
+/**
+ * Refreshes the Supabase auth session cookie on each request and sends
+ * signed-out visitors to /login. This is an optimistic check for UX only —
+ * real authorization happens in requireUser()/requireAdmin() and in RLS.
+ */
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
 
@@ -30,7 +41,26 @@ export async function updateSession(request: NextRequest) {
   );
 
   // Do not run code between createServerClient and getClaims — it validates and refreshes the token.
-  await supabase.auth.getClaims();
+  const { data } = await supabase.auth.getClaims();
+  const signedIn = !!data?.claims.sub;
+  const { pathname } = request.nextUrl;
+
+  if (!signedIn && !isPublic(pathname)) {
+    return redirectKeepingCookies(request, response, "/login");
+  }
+  if (signedIn && pathname === "/login") {
+    return redirectKeepingCookies(request, response, "/");
+  }
 
   return response;
+}
+
+/** Redirect while preserving any refreshed auth cookies set on `response`. */
+function redirectKeepingCookies(request: NextRequest, response: NextResponse, pathname: string) {
+  const url = request.nextUrl.clone();
+  url.pathname = pathname;
+  url.search = "";
+  const redirect = NextResponse.redirect(url);
+  response.cookies.getAll().forEach((cookie) => redirect.cookies.set(cookie));
+  return redirect;
 }

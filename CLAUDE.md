@@ -12,8 +12,26 @@ Internal task manager for a ~6-person team. Roadmap and product principles: [doc
 
 ## Code conventions
 - Next.js 16: `src/proxy.ts` (not `middleware.ts`); `cookies()`, `params`, `searchParams` are async.
-- Supabase: `@/lib/supabase/client` in Client Components, `@/lib/supabase/server` on the server. Never use the service-role key in Next.js code.
+- Supabase: `@/lib/supabase/client` in Client Components, `@/lib/supabase/server` on the server.
+- `@/lib/supabase/admin` (secret key, bypasses RLS) is ONLY for Auth admin calls (create user, ban) after `requireAdmin()`. Never use it for business data.
 - Authorization is enforced by RLS in Postgres; UI checks are convenience only.
+
+## Auth
+- Current user: `getCurrentProfile()` / `requireUser()` / `requireAdmin()` from `@/lib/auth`. The user id always comes from the session (`getClaims`) — never accept a user id from the client for "who am I".
+- Every Server Function starts with `requireUser()` or `requireAdmin()`, even if the page is already gated.
+- Admin-only pages live in `src/app/(app)/(admin)/` (layout calls `requireAdmin()`).
+- Home per role: `homePathFor()` — ADMIN → `/overview`, EMPLOYEE → `/today`. Nav per role: `navByRole` in `@/lib/navigation`.
+- No public signup (`enable_signup = false`); admins create members on `/members`. Deactivating = `profiles.active = false` + Auth ban.
+- RLS helpers for new tables: `private.is_admin()`, `private.is_active_user()`. Pattern: employees see rows where `assignee_id = (select auth.uid())`, admins see all.
+- Profile column guard trigger blocks clients from changing `role`/`active` (non-admin), `email`, `zalo_*`. Zalo fields are written server-side only.
+
+## Tasks
+- `fixed_task_templates` (admin-only definitions) → `tasks` (per-day instances, `type` FIXED/ADHOC). FIXED rows are created ONLY by `private.generate_fixed_tasks(date)`.
+- Generation is idempotent via `unique (template_id, task_date)` + `on conflict do nothing`. pg_cron job `generate-fixed-tasks` runs `5 17 * * *` UTC = 00:05 Asia/Bangkok. Admin actions call `ensure_today_fixed_tasks()` so new templates show today.
+- Tasks snapshot title/note/due_at/sort_order at generation; template edits never rewrite existing tasks.
+- `tasks.template_id` is `on delete restrict`: templates with history can't be hard-deleted — disable (`active = false`).
+- `private.guard_task_update()`: clients may only change `status` and `employee_note` (only if `allow_employee_note`); employees only on today's tasks. `completed_at/by` are stamped by the trigger.
+- Timezone: `private.app_timezone()` in SQL and `APP_TIMEZONE` in `@/lib/time` — keep in sync. Use `todayLocal()` for `task_date` in the app.
 - Validate all external input (forms, Server Function args) with Zod.
 - Animations: `motion/react`; keep them short (≤ 300–400ms) and subtle.
 - Add UI components with `npx shadcn@latest add <name>`.
@@ -38,3 +56,7 @@ Internal task manager for a ~6-person team. Roadmap and product principles: [doc
 - `npm run db:start` / `db:stop` / `db:status` — local Supabase (needs Docker running)
 - `npm run db:reset` — rebuild local DB from migrations + seed
 - `npm run db:types` — regenerate `src/types/database.ts`
+- `npm run test:rls` — RLS checks via the Data API (needs `db:reset` seed). Run after every migration touching policies.
+- `npm run test:db` — pgTAP tests in `supabase/tests/` (generation, idempotency, snapshots)
+- `npm run test:e2e` — browser auth flow via installed Edge (app must be running; set `E2E_BASE_URL`)
+- Seed accounts (local only, password `Password123!`): `admin@team.local`, `an@team.local`, `binh@team.local`

@@ -14,7 +14,10 @@
     "db:reset": "supabase db reset",
     "db:new": "supabase migration new",
     "db:push": "supabase db push",
-    "db:types": "supabase gen types typescript --local --schema public > src/types/database.ts"
+    "db:types": "supabase gen types typescript --local --schema public > src/types/database.ts",
+    "test:rls": "node --env-file=.env.local scripts/test-rls.mjs",
+    "test:e2e": "node scripts/e2e-auth.mjs",
+    "test:db": "supabase test db"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
@@ -41,6 +44,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.3.8",
+    "playwright-core": "^1.63.0",
     "supabase": "^2.119.0",
     "tailwindcss": "^4",
     "typescript": "^5"

@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "motion/react";
-import { navItems, isActivePath } from "@/lib/navigation";
+import { navByRole, isActivePath, type Role } from "@/lib/navigation";
 import { transition } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
 /** Mobile-only tab bar (below md). */
-export function BottomNav() {
+export function BottomNav({ role }: { role: Role }) {
+  const items = navByRole[role];
   const pathname = usePathname();
 
   return (
@@ -16,8 +17,8 @@ export function BottomNav() {
       aria-label="Điều hướng chính"
       className="fixed inset-x-0 bottom-0 z-30 border-t bg-surface/90 pb-safe backdrop-blur-lg md:hidden"
     >
-      <ul className="mx-auto grid h-bottomnav max-w-md" style={{ gridTemplateColumns: `repeat(${navItems.length}, 1fr)` }}>
-        {navItems.map((item) => {
+      <ul className="mx-auto grid h-bottomnav max-w-md" style={{ gridTemplateColumns: `repeat(${items.length}, 1fr)` }}>
+        {items.map((item) => {
           const active = isActivePath(pathname, item.href);
           return (
             <li key={item.href}>

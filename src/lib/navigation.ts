@@ -1,31 +1,53 @@
-import { CalendarCheck, LayoutList, Settings, Users, type LucideIcon } from "lucide-react";
+import {
+  CalendarCheck,
+  LayoutDashboard,
+  LayoutList,
+  Repeat,
+  Settings,
+  UserRound,
+  Users,
+  type LucideIcon,
+} from "lucide-react";
+
+export type Role = "ADMIN" | "EMPLOYEE";
 
 export type NavItem = {
   href: string;
   label: string;
   icon: LucideIcon;
-  /** Shown only to ADMIN once auth/roles exist (Phase 2). */
-  adminOnly?: boolean;
 };
 
-export const navItems: NavItem[] = [
-  { href: "/today", label: "Hôm nay", icon: CalendarCheck },
-  { href: "/tasks", label: "Công việc", icon: LayoutList },
-  { href: "/team", label: "Team", icon: Users, adminOnly: true },
-  { href: "/settings", label: "Cài đặt", icon: Settings },
-];
+/** Each role gets its own navigation — employees see "my day", admins see "the team". */
+export const navByRole: Record<Role, NavItem[]> = {
+  EMPLOYEE: [
+    { href: "/today", label: "Hôm nay", icon: CalendarCheck },
+    { href: "/tasks", label: "Công việc", icon: LayoutList },
+    { href: "/profile", label: "Hồ sơ", icon: UserRound },
+  ],
+  ADMIN: [
+    { href: "/overview", label: "Tổng quan", icon: LayoutDashboard },
+    { href: "/fixed-tasks", label: "Việc cố định", icon: Repeat },
+    { href: "/members", label: "Thành viên", icon: Users },
+    { href: "/settings", label: "Cài đặt", icon: Settings },
+  ],
+};
 
 export function isActivePath(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-/** Titles for routes that exist but are not in the main nav. */
-const extraTitles: Record<string, string> = {
+const titles: Record<string, string> = {
+  "/today": "Hôm nay",
+  "/tasks": "Công việc",
+  "/profile": "Hồ sơ",
+  "/overview": "Tổng quan",
+  "/members": "Thành viên",
+  "/fixed-tasks": "Việc cố định",
+  "/settings": "Cài đặt",
   "/design": "Design System",
 };
 
 export function getPageTitle(pathname: string) {
-  return (
-    navItems.find((item) => isActivePath(pathname, item.href))?.label ?? extraTitles[pathname] ?? "Team Todo"
-  );
+  const match = Object.keys(titles).find((href) => isActivePath(pathname, href));
+  return match ? titles[match] : "Team Todo";
 }
