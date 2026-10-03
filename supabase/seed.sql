@@ -1,0 +1,2 @@
+-- Local development seed data. Runs after migrations on `npm run db:reset`.
+-- Never put production data or real credentials here.
