@@ -117,9 +117,10 @@ async function signIn(email) {
   const { error: tplInsertErr } = await an.from("fixed_task_templates").insert({ assignee_id: AN, title: "Hack" });
   check("employee cannot create templates", !!tplInsertErr, tplInsertErr);
 
-  const { data: myTasks } = await an.from("tasks").select("id, assignee_id, allow_employee_note, title").eq("task_date", today);
+  const { data: myTasks } = await an
+    .from("tasks").select("id, assignee_id, allow_employee_note, title").eq("task_date", today).eq("type", "FIXED");
   check(
-    "employee reads only own tasks",
+    "employee reads only own fixed tasks for today",
     myTasks?.length === 3 && myTasks.every((t) => t.assignee_id === AN),
     myTasks?.map((t) => t.assignee_id),
   );
@@ -173,8 +174,8 @@ async function signIn(email) {
   check("employee cannot delete tasks", (deletedTask ?? []).length === 0, deletedTask);
 
   const { error: taskInsertErr } = await an
-    .from("tasks").insert({ type: "ADHOC", assignee_id: AN, task_date: today, title: "Tự thêm" });
-  check("employee cannot insert tasks", !!taskInsertErr, taskInsertErr);
+    .from("tasks").insert({ type: "FIXED", template_id: crypto.randomUUID(), title: "Tự thêm việc cố định" });
+  check("employee cannot insert FIXED tasks", !!taskInsertErr, taskInsertErr);
 
   const { error: ensureErr } = await an.rpc("ensure_today_fixed_tasks");
   check("employee cannot trigger generation", !!ensureErr, ensureErr);
@@ -207,6 +208,76 @@ async function signIn(email) {
   check("admin can trigger today's generation (idempotent)", !ensureAdminErr, ensureAdminErr);
   const { data: afterEnsure } = await admin.from("tasks").select("id").eq("task_date", today);
   check("re-running generation adds no duplicates", afterEnsure?.length === allTasks?.length, [allTasks?.length, afterEnsure?.length]);
+}
+
+// ---------- ad-hoc tasks ----------
+{
+  const service = createClient(url, process.env.SUPABASE_SECRET_KEY, { auth: { persistSession: false } });
+  const an = await signIn("an@team.local");
+  const binh = await signIn("binh@team.local");
+  const admin = await signIn("admin@team.local");
+  const created = [];
+
+  const { data: mine, error: createErr } = await an
+    .from("tasks").insert({ type: "ADHOC", title: "RLS quick create" }).select("id, assignee_id, created_by, status").single();
+  check(
+    "employee creates ad-hoc without sending assignee_id; it is set to self",
+    mine?.assignee_id === AN && mine.created_by === AN && mine.status === "TODO",
+    createErr ?? mine,
+  );
+  if (mine) created.push(mine.id);
+
+  const { error: forOtherErr } = await an.from("tasks").insert({ type: "ADHOC", title: "Cho Bình", assignee_id: BINH });
+  check("employee cannot create an ad-hoc task for someone else", !!forOtherErr, forOtherErr);
+
+  const { error: doneErr } = await an.from("tasks").insert({ type: "ADHOC", title: "Đã xong sẵn", status: "DONE", completed_at: new Date().toISOString() });
+  check("employee cannot create an already-completed task", !!doneErr, doneErr);
+
+  const due = new Date(Date.now() + 3 * 864e5).toISOString();
+  const { data: edited, error: editErr } = await an
+    .from("tasks").update({ title: "RLS renamed", note: "ghi chú", due_at: due }).eq("id", mine.id).select("title, due_at");
+  check("employee can edit and reschedule own ad-hoc", edited?.[0]?.title === "RLS renamed" && edited[0].due_at, editErr);
+
+  const { error: adhocNoteErr } = await an.from("tasks").update({ employee_note: "x" }).eq("id", mine.id);
+  check("ad-hoc tasks use `note`, not employee_note", !!adhocNoteErr, adhocNoteErr);
+
+  const { data: binhTask } = await binh.from("tasks").insert({ type: "ADHOC", title: "Việc của Bình" }).select("id").single();
+  created.push(binhTask.id);
+  const { data: peek } = await an.from("tasks").select("id").eq("id", binhTask.id);
+  check("employee cannot read another employee's ad-hoc", peek?.length === 0, peek);
+  const { data: hijack } = await an.from("tasks").update({ title: "hacked", due_at: null }).eq("id", binhTask.id).select();
+  check("employee cannot edit another employee's ad-hoc", (hijack ?? []).length === 0, hijack);
+
+  const { data: del } = await an.from("tasks").delete().eq("id", mine.id).select();
+  check("employee cannot delete ad-hoc tasks", (del ?? []).length === 0, del);
+
+  // Carry-over: a task created long ago stays open and workable.
+  const { data: old } = await service
+    .from("tasks")
+    .insert({ type: "ADHOC", assignee_id: AN, task_date: "2020-01-01", title: "Việc tồn từ 2020", created_by: AN })
+    .select("id")
+    .single();
+  created.push(old.id);
+  const { data: oldRow } = await an.from("tasks").select("id, display_status").eq("id", old.id).single();
+  check("carried-over ad-hoc without deadline is visible and not overdue", oldRow?.display_status === "TODAY", oldRow);
+  const { data: oldDone, error: oldDoneErr } = await an.from("tasks").update({ status: "DONE" }).eq("id", old.id).select("status");
+  check("employee can complete a carried-over ad-hoc task", oldDone?.[0]?.status === "DONE", oldDoneErr);
+
+  const { data: overdue } = await service
+    .from("tasks")
+    .insert({ type: "ADHOC", assignee_id: AN, title: "Trễ hạn", due_at: new Date(Date.now() - 6e4).toISOString(), created_by: AN })
+    .select("id")
+    .single();
+  created.push(overdue.id);
+  const { data: overdueRow } = await an.from("tasks").select("display_status").eq("id", overdue.id).single();
+  check("display_status is OVERDUE once the deadline passes", overdueRow?.display_status === "OVERDUE", overdueRow);
+
+  const { data: adminSees } = await admin.from("tasks").select("id").eq("id", mine.id);
+  check("admin can read employees' ad-hoc tasks", adminSees?.length === 1, adminSees);
+  const { error: adminEditErr } = await admin.from("tasks").update({ title: "admin đổi" }).eq("id", mine.id);
+  check("admin cannot rewrite an employee's ad-hoc content", !!adminEditErr, adminEditErr);
+
+  await service.from("tasks").delete().in("id", created);
 }
 
 console.log(failed ? `\n${failed} check(s) FAILED` : "\nAll RLS checks passed");

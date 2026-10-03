@@ -27,6 +27,61 @@ export function formatDateLong(date: string) {
   }).format(new Date(`${date}T12:00:00+07:00`));
 }
 
+/** Add days to a YYYY-MM-DD date. */
+export function addDays(date: string, days: number) {
+  const d = new Date(`${date}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+/** UTC offset of the app timezone on a given date, e.g. "+07:00". */
+function offsetFor(date: string) {
+  const name = new Intl.DateTimeFormat("en-US", { timeZone: APP_TIMEZONE, timeZoneName: "longOffset" })
+    .formatToParts(new Date(`${date}T12:00:00Z`))
+    .find((p) => p.type === "timeZoneName")?.value; // "GMT+07:00" (or "GMT" for UTC)
+  const offset = name?.replace("GMT", "") ?? "";
+  return offset === "" ? "+00:00" : offset;
+}
+
+/** Deadlines picked without a time mean "by end of day". */
+export const END_OF_DAY = "23:59";
+
+/** Local date (YYYY-MM-DD) + optional time (HH:MM) → ISO timestamp with offset. */
+export function toDeadlineISO(date: string, time?: string | null) {
+  return `${date}T${time || END_OF_DAY}:00${offsetFor(date)}`;
+}
+
+/** 00:00 of a local date as an ISO timestamp, for range queries. */
+export function startOfDayISO(date: string) {
+  return `${date}T00:00:00${offsetFor(date)}`;
+}
+
+/** Split a timestamptz into local date + time for form inputs. Time is "" for end-of-day deadlines. */
+export function fromDeadlineISO(iso: string) {
+  const d = new Date(iso);
+  const date = new Intl.DateTimeFormat("en-CA", { timeZone: APP_TIMEZONE }).format(d);
+  const time = formatTimeLocal(iso);
+  return { date, time: time === END_OF_DAY ? "" : time };
+}
+
+/** Human deadline: "Hôm nay 17:00", "Ngày mai", "Hôm qua 17:00", "T2, 5/10 · 09:00". */
+export function formatDeadline(iso: string, now = new Date()) {
+  const { date, time } = fromDeadlineISO(iso);
+  const day = formatDay(date, now);
+  return time ? `${day} · ${time}` : day;
+}
+
+/** Relative day label for a local date: "Hôm nay", "Ngày mai", "Hôm qua", "T2, 5/10". */
+export function formatDay(date: string, now = new Date()) {
+  const today = todayLocal(now);
+  if (date === today) return "Hôm nay";
+  if (date === addDays(today, 1)) return "Ngày mai";
+  if (date === addDays(today, -1)) return "Hôm qua";
+  const weekday = WEEKDAYS[(new Date(`${date}T12:00:00Z`).getUTCDay() + 6) % 7]?.short ?? "";
+  const [, m, d] = date.split("-");
+  return `${weekday}, ${Number(d)}/${Number(m)}`;
+}
+
 /** "HH:MM:SS" from Postgres `time` → "HH:MM". */
 export function trimSeconds(time: string) {
   return time.slice(0, 5);

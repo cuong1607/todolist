@@ -1,10 +1,8 @@
 import type { Metadata } from "next";
-import { CalendarCheck } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
-import { EmptyState } from "@/components/empty-state";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { formatDateLong, todayLocal } from "@/lib/time";
+import { formatDateLong, startOfDayISO, todayLocal } from "@/lib/time";
 import { TodayList } from "./today-list";
 
 export const metadata: Metadata = { title: "Hôm nay" };
@@ -14,12 +12,22 @@ export default async function TodayPage() {
   const today = todayLocal();
   const supabase = await createClient();
 
-  // Filter by the session user explicitly: RLS would let an admin see everyone's tasks.
+  // Today's FIXED tasks + every unfinished ADHOC task (they carry over across days)
+  // + ADHOC tasks finished today. Filter by the session user explicitly: RLS alone
+  // would let an admin see everyone's tasks.
   const { data: tasks, error } = await supabase
     .from("tasks")
-    .select("id, type, title, note, allow_employee_note, employee_note, due_at, status, completed_at")
+    .select(
+      "id, type, title, note, allow_employee_note, employee_note, due_at, status, completed_at, task_date, sort_order, created_at",
+    )
     .eq("assignee_id", me.id)
-    .eq("task_date", today)
+    .or(
+      [
+        `and(type.eq.FIXED,task_date.eq.${today})`,
+        "and(type.eq.ADHOC,status.eq.TODO)",
+        `and(type.eq.ADHOC,completed_at.gte.${startOfDayISO(today)})`,
+      ].join(","),
+    )
     .order("sort_order")
     .order("created_at");
 
@@ -28,15 +36,7 @@ export default async function TodayPage() {
   return (
     <>
       <PageHeader title="Hôm nay" description={capitalize(formatDateLong(today))} />
-      {tasks.length === 0 ? (
-        <EmptyState
-          icon={<CalendarCheck />}
-          title="Hôm nay không có việc nào"
-          description="Công việc cố định và phát sinh của bạn sẽ hiện ở đây."
-        />
-      ) : (
-        <TodayList tasks={tasks} />
-      )}
+      <TodayList tasks={tasks} />
     </>
   );
 }

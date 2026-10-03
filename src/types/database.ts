@@ -45,10 +45,10 @@ isOneToOne: false
                   ]
                 },"tasks": {
                   Row: {
-                    "allow_employee_note": boolean,"assignee_id": string,"completed_at": string | null,"completed_by": string | null,"created_at": string,"created_by": string | null,"due_at": string | null,"employee_note": string | null,"id": string,"note": string | null,"sort_order": number,"status": Database["public"]['Enums']["task_status"],"task_date": string,"template_id": string | null,"title": string,"type": Database["public"]['Enums']["task_type"],"updated_at": string
+                    "allow_employee_note": boolean,"assignee_id": string,"completed_at": string | null,"completed_by": string | null,"created_at": string,"created_by": string | null,"due_at": string | null,"employee_note": string | null,"id": string,"note": string | null,"sort_order": number,"status": Database["public"]['Enums']["task_status"],"task_date": string,"template_id": string | null,"title": string,"type": Database["public"]['Enums']["task_type"],"updated_at": string,"display_status": Database["public"]['Enums']["task_display_status"] | null
                   }
                   Insert: {
-                    "allow_employee_note"?: boolean,"assignee_id": string,"completed_at"?: string | null,"completed_by"?: string | null,"created_at"?: string,"created_by"?: string | null,"due_at"?: string | null,"employee_note"?: string | null,"id"?: string,"note"?: string | null,"sort_order"?: number,"status"?: Database["public"]['Enums']["task_status"],"task_date": string,"template_id"?: string | null,"title": string,"type": Database["public"]['Enums']["task_type"],"updated_at"?: string
+                    "allow_employee_note"?: boolean,"assignee_id"?: string,"completed_at"?: string | null,"completed_by"?: string | null,"created_at"?: string,"created_by"?: string | null,"due_at"?: string | null,"employee_note"?: string | null,"id"?: string,"note"?: string | null,"sort_order"?: number,"status"?: Database["public"]['Enums']["task_status"],"task_date"?: string,"template_id"?: string | null,"title": string,"type": Database["public"]['Enums']["task_type"],"updated_at"?: string
                   }
                   Update: {
                     "allow_employee_note"?: boolean,"assignee_id"?: string,"completed_at"?: string | null,"completed_by"?: string | null,"created_at"?: string,"created_by"?: string | null,"due_at"?: string | null,"employee_note"?: string | null,"id"?: string,"note"?: string | null,"sort_order"?: number,"status"?: Database["public"]['Enums']["task_status"],"task_date"?: string,"template_id"?: string | null,"title"?: string,"type"?: Database["public"]['Enums']["task_type"],"updated_at"?: string
@@ -89,6 +89,9 @@ isOneToOne: false
             "app_health":
 { Args: Record<PropertyKey, never>; Returns: Json
                            },
+"display_status":
+{ Args: { "t": Database["public"]['Tables']["tasks"]['Row'] }; Returns: Database["public"]['Enums']["task_display_status"]
+                           },
 "ensure_today_fixed_tasks":
 { Args: Record<PropertyKey, never>; Returns: number
                            },
@@ -97,7 +100,7 @@ isOneToOne: false
                            }
           }
           Enums: {
-            "app_role": "ADMIN"|"EMPLOYEE","task_status": "TODO"|"DONE","task_type": "FIXED"|"ADHOC"
+            "app_role": "ADMIN"|"EMPLOYEE","task_display_status": "UPCOMING"|"TODAY"|"OVERDUE"|"COMPLETED","task_status": "TODO"|"DONE","task_type": "FIXED"|"ADHOC"
           }
           CompositeTypes: {
             [_ in never]: never
@@ -213,7 +216,7 @@ export type CompositeTypes<
 export const Constants = {
   "public": {
           Enums: {
-            "app_role": ["ADMIN", "EMPLOYEE"],"task_status": ["TODO", "DONE"],"task_type": ["FIXED", "ADHOC"]
+            "app_role": ["ADMIN", "EMPLOYEE"],"task_display_status": ["UPCOMING", "TODAY", "OVERDUE", "COMPLETED"],"task_status": ["TODO", "DONE"],"task_type": ["FIXED", "ADHOC"]
           }
         }
 } as const

@@ -8,7 +8,7 @@ import { createClient } from "@/lib/supabase/server";
 export type TaskActionResult = { ok: true } | { ok: false; error: string };
 
 // Which tasks a user may touch is decided by RLS + the guard trigger
-// (own tasks, today only, only status/employee_note). We just pass the intent.
+// (own tasks; FIXED: today only, status/employee_note; ADHOC: any day). We just pass the intent.
 
 export async function setTaskDone(taskId: string, done: boolean): Promise<TaskActionResult> {
   await requireUser();

@@ -89,3 +89,15 @@ Hai loại công việc chính:
 - [x] `private.generate_fixed_tasks()` idempotent + pg_cron 00:05 Asia/Bangkok; đã kiểm chứng job chạy thật
 - [x] Template mới áp dụng ngay hôm nay (`ensure_today_fixed_tasks()`), không back-fill quá khứ
 - [x] Test: `test:db` (16 pgTAP), `test:rls` (41), `test:e2e` (30)
+
+## Phase 5. Ad-hoc Task
+
+- [x] Employee tạo nhanh (tên bắt buộc; deadline + ghi chú tuỳ chọn) qua FAB / nút "Thêm việc" ở Hôm nay
+- [x] Chỉ tạo cho chính mình: trigger lấy assignee/ngày/người tạo từ session, từ chối mọi giá trị khác
+- [x] Sửa tên, ghi chú, dời deadline, hoàn thành, mở lại — kể cả việc tồn từ ngày trước
+- [x] Carry-over: việc chưa xong hiện mỗi ngày đến khi xong, có nhãn "Tồn từ …"
+- [x] Trạng thái suy ra (không lưu): UPCOMING / TODAY / OVERDUE / COMPLETED — `display_status()` (SQL) + `deriveStatus()` (TS), tự cập nhật mỗi phút
+- [x] Không deadline → không bao giờ quá hạn, nằm trong "Việc đang tồn"
+- [x] Hôm nay chia nhóm: Quá hạn · Hôm nay · Việc đang tồn · Sắp tới · Đã xong
+- [x] Test: `test:db` (33), `test:rls` (54), `test:e2e` (40)
+- [ ] Chưa có: xoá việc phát sinh (spec không cho), lịch sử ở trang Công việc

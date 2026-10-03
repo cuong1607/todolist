@@ -32,6 +32,9 @@ Internal task manager for a ~6-person team. Roadmap and product principles: [doc
 - `tasks.template_id` is `on delete restrict`: templates with history can't be hard-deleted — disable (`active = false`).
 - `private.guard_task_update()`: clients may only change `status` and `employee_note` (only if `allow_employee_note`); employees only on today's tasks. `completed_at/by` are stamped by the trigger.
 - Timezone: `private.app_timezone()` in SQL and `APP_TIMEZONE` in `@/lib/time` — keep in sync. Use `todayLocal()` for `task_date` in the app.
+- ADHOC tasks: created by the employee for themselves only (`guard_task_insert` forces assignee/date/creator from the session — never send `assignee_id`). Owner may edit `title`/`note`/`due_at` on any day; nobody deletes. `due_at` is the deadline (spec name: `deadline_at`); no time picked = 23:59 local.
+- Unfinished ADHOC tasks carry over: the Today query is "today's FIXED + all open ADHOC + ADHOC completed today". `task_date` on ADHOC is just the creation date.
+- Display status (UPCOMING/TODAY/OVERDUE/COMPLETED) is derived, never stored: SQL `public.display_status(tasks)` (computed column) and TS `deriveStatus()` in `@/lib/task-status` — keep both in sync. No deadline → never overdue ("Việc đang tồn").
 - Validate all external input (forms, Server Function args) with Zod.
 - Animations: `motion/react`; keep them short (≤ 300–400ms) and subtle.
 - Add UI components with `npx shadcn@latest add <name>`.

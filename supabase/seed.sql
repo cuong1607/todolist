@@ -45,3 +45,19 @@ values
 -- Generate today's tasks (the cron job does this daily at 00:05 Asia/Bangkok).
 select private.generate_fixed_tasks();
 
+-- Ad-hoc tasks for An, relative to now() so every status is represented after any reset:
+-- carried over from yesterday & overdue, no deadline (backlog), due later today, upcoming.
+insert into public.tasks (type, assignee_id, task_date, title, note, due_at, created_by)
+values
+  ('ADHOC', '00000000-0000-4000-8000-000000000002', private.today_local() - 1,
+   'Gửi báo giá cho khách Hưng Thịnh', 'Khách cần trước khi chốt đơn.',
+   ((private.today_local() - 1) + time '17:00') at time zone private.app_timezone(), '00000000-0000-4000-8000-000000000002'),
+  ('ADHOC', '00000000-0000-4000-8000-000000000002', private.today_local(),
+   'Tìm nhà cung cấp hộp carton mới', null, null, '00000000-0000-4000-8000-000000000002'),
+  ('ADHOC', '00000000-0000-4000-8000-000000000002', private.today_local(),
+   'Gọi lại cho shipper về đơn #1024', null,
+   (private.today_local() + time '23:00') at time zone private.app_timezone(), '00000000-0000-4000-8000-000000000002'),
+  ('ADHOC', '00000000-0000-4000-8000-000000000002', private.today_local(),
+   'Chuẩn bị hàng mẫu cho buổi chụp ảnh', 'Lấy 3 mẫu màu be.',
+   ((private.today_local() + 2) + time '10:00') at time zone private.app_timezone(), '00000000-0000-4000-8000-000000000002');
+
