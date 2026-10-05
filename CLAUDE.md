@@ -40,7 +40,7 @@ Schema (Phase 3): `fixed_task_templates`, `tasks`, `task_history`, `notification
 - Unfinished ADHOC tasks carry over: Today = "today's FIXED + all open ADHOC + ADHOC completed today". Carry-over label uses `created_at`.
 - Display status (UPCOMING/TODAY/OVERDUE/COMPLETED) is derived, never stored: SQL `public.display_status(tasks)` (computed column) and TS `deriveStatus()` in `@/lib/task-status` — keep both in sync. No deadline → never overdue ("Việc đang tồn").
 - `task_history` is written only by the `log_task_change` trigger (CREATED/UPDATED/RESCHEDULED/COMPLETED/REOPENED, changed fields only; `actor_id` null = system). Read-only for clients.
-- `notification_settings` row per profile (auto-created); `profiles.notification_enabled` is the master switch. `notification_logs` are written by server jobs only — use `dedupe_key` to make sends idempotent. `system_settings`: members read, admins write.
+- `notification_settings` row per profile (auto-created); `profiles.notification_enabled` is the master switch. `notification_logs` are written by the notification engine only (see below). `system_settings`: members read, admins write.
 - Timezone: `private.app_timezone()` in SQL and `APP_TIMEZONE` in `@/lib/time` — keep in sync. Use `todayLocal()` for `task_date` in the app.
 
 ## Today screen (Phase 6)
@@ -69,6 +69,15 @@ Schema (Phase 3): `fixed_task_templates`, `tasks`, `task_history`, `notification
 - All aggregation is in SQL: `public.report_summary(from, to)` (per member) and `public.report_daily(from, to)` (per day, team-wide, stops at today). Never pull raw tasks to compute metrics in TS. Metric definitions are documented at the top of the `reporting` migration — change them there, with `supabase/tests/reporting.test.sql`.
 - No combined performance score. The headline is "Tỷ lệ hoàn thành công việc" = fixed completed / expected; show "—" (not 0%) when nothing was expected.
 - Charts: `TrendChart` (hand-rolled SVG, single series, one y-axis). Marks take the hue via `currentColor`; text stays in text tokens. Every charted value must also be in the daily table.
+
+## Notification engine (Phase 9)
+- Flow: task state → `private.schedule_notifications(p_now)` → `notification_logs` (queue + audit) → provider. pg_cron job `notification-tick` runs `private.notification_tick()` every minute (release stuck → schedule → deliver in-app).
+- The scheduler only decides WHAT is due; it enqueues through `private.enqueue_notification()`, which writes one row per provider the member is reachable on (IN_APP always; ZALO when `profiles.zalo_connected`). Idempotent via `unique (provider, dedupe_key)` — every new notification type needs a deterministic key (`<type>:<user|task>:<date|deadline epoch>`).
+- Providers never touch the table directly: `claim_notifications(provider, limit)` → send → `complete_notification(id, external_id)` or `fail_notification(id, error)` (retry after 1 and 5 min, third failure = FAILED). Service role only. IN_APP is delivered inside the DB by `private.deliver_in_app()`.
+- Status: PENDING → PROCESSING → SENT | FAILED. Payload is `{ title, body, url? }` in Vietnamese, built in SQL; read it with `readPayload()` (`@/lib/notifications`), which only allows in-app URLs.
+- Rules live in the migration header + `supabase/tests/notification_engine.test.sql` (tests pin the clock via `p_now`). Summary times for the evening summaries are `system_settings` keys (`end_of_day_summary_time`, `admin_daily_summary_time`); defaults are duplicated in `getSummaryTimes()` — keep in sync.
+- UI: inbox `/notifications` (own IN_APP rows, bell in the header), admin log `/settings/notifications`.
+- The cron tick also runs locally, so `notification_logs` fills up on its own after `db:reset`; tests must not assume it is empty.
 
 ## Database
 - Every schema change goes through a migration: `npm run db:new <name>` → edit SQL in `supabase/migrations/` → `npm run db:reset` → `npm run db:types`.

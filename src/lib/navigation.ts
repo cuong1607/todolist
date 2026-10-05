@@ -45,6 +45,7 @@ const titles: Record<string, string> = {
   "/calendar": "Lịch",
   "/tasks": "Công việc",
   "/profile": "Tài khoản",
+  "/notifications": "Thông báo",
   "/overview": "Tổng quan",
   "/reports": "Báo cáo",
   "/members": "Thành viên",

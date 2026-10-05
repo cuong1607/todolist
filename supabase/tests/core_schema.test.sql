@@ -116,7 +116,7 @@ select is(
 select is((select count(*)::int from notification_settings), 1, 'employee sees only own notification settings');
 select lives_ok($$ update notification_settings set remind_before_minutes = 60 $$, 'employee updates own notification settings');
 select throws_ok(
-  $$ insert into notification_logs (user_id, channel, kind) values ('00000000-0000-4000-8000-000000000002', 'ZALO', 'TEST') $$,
+  $$ insert into notification_logs (user_id, provider, type) values ('00000000-0000-4000-8000-000000000002', 'ZALO', 'NEW_TASK') $$,
   '42501', null,
   'clients cannot write notification logs'
 );

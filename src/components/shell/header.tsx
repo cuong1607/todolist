@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Bell } from "lucide-react";
 import { getPageTitle } from "@/lib/navigation";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Brand } from "./brand";
@@ -25,6 +26,14 @@ export function Header({ user }: { user: ShellUser }) {
 
         <div className="flex items-center gap-1">
           <ThemeToggle />
+          <Link
+            href="/notifications"
+            aria-label="Thông báo"
+            title="Thông báo"
+            className="flex size-9 items-center justify-center rounded-full outline-none transition-colors duration-(--duration-normal) hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+          >
+            <Bell className="size-[1.125rem]" />
+          </Link>
           <Link
             href="/profile"
             aria-label="Hồ sơ của bạn"

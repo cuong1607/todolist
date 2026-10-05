@@ -13,7 +13,12 @@ import { updateNotificationSettings, type ProfileFormState } from "./actions";
 
 export type NotificationPrefs = Pick<
   Tables<"notification_settings">,
-  "daily_summary_enabled" | "daily_summary_time" | "deadline_reminder_enabled" | "remind_before_minutes" | "overdue_alert_enabled"
+  | "daily_summary_enabled"
+  | "daily_summary_time"
+  | "deadline_reminder_enabled"
+  | "remind_before_minutes"
+  | "overdue_alert_enabled"
+  | "end_of_day_summary_enabled"
 >;
 
 const REMIND_OPTIONS = [
@@ -29,6 +34,7 @@ export function NotificationForm({ settings, masterEnabled }: { settings: Notifi
   const [daily, setDaily] = useState(settings.daily_summary_enabled);
   const [reminder, setReminder] = useState(settings.deadline_reminder_enabled);
   const [overdue, setOverdue] = useState(settings.overdue_alert_enabled);
+  const [endOfDay, setEndOfDay] = useState(settings.end_of_day_summary_enabled);
 
   useEffect(() => {
     if (state.ok) toast.success("Đã lưu cài đặt thông báo");
@@ -85,6 +91,10 @@ export function NotificationForm({ settings, masterEnabled }: { settings: Notifi
         <Row title="Báo việc quá hạn" description="Khi một việc trễ deadline">
           <Switch checked={overdue} onCheckedChange={setOverdue} aria-label="Báo việc quá hạn" />
           {overdue && <input type="hidden" name="overdue_alert_enabled" value="on" />}
+        </Row>
+        <Row title="Tổng kết cuối ngày" description="Bạn đã xong bao nhiêu việc hôm nay">
+          <Switch checked={endOfDay} onCheckedChange={setEndOfDay} aria-label="Tổng kết cuối ngày" />
+          {endOfDay && <input type="hidden" name="end_of_day_summary_enabled" value="on" />}
         </Row>
       </div>
 

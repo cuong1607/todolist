@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { LogOut, MessageCircle } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,7 +23,7 @@ export default async function ProfilePage() {
   const supabase = await createClient();
   const { data: settings } = await supabase
     .from("notification_settings")
-    .select("daily_summary_enabled, daily_summary_time, deadline_reminder_enabled, remind_before_minutes, overdue_alert_enabled")
+    .select("daily_summary_enabled, daily_summary_time, deadline_reminder_enabled, remind_before_minutes, overdue_alert_enabled, end_of_day_summary_enabled")
     .eq("user_id", me.id)
     .maybeSingle();
 
@@ -56,7 +57,13 @@ export default async function ProfilePage() {
             <Card>
               <CardHeader>
                 <CardTitle>Thông báo</CardTitle>
-                <CardDescription>Chọn loại nhắc việc bạn muốn nhận. Tin nhắn sẽ gửi qua Zalo khi kết nối xong.</CardDescription>
+                <CardDescription>
+                  Chọn loại nhắc việc bạn muốn nhận. Thông báo hiện ở{" "}
+                  <Link href="/notifications" className="font-medium text-primary hover:underline">
+                    mục Thông báo
+                  </Link>
+                  ; sẽ gửi thêm qua Zalo khi kết nối xong.
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <NotificationForm settings={settings} masterEnabled={me.notification_enabled} />

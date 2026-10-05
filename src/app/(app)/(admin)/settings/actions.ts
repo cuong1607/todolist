@@ -9,7 +9,30 @@ const teamSchema = z.object({
   team_name: z.string().trim().min(1, "Vui lòng nhập tên team").max(40, "Tối đa 40 ký tự"),
 });
 
+const time = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Giờ không hợp lệ");
+const summaryTimesSchema = z.object({ end_of_day_summary_time: time, admin_daily_summary_time: time });
+
 export type SettingsFormState = { ok?: boolean; error?: string };
+
+/** When the scheduler sends the end-of-day summaries (read by private.schedule_notifications). */
+export async function updateSummaryTimes(_prev: SettingsFormState, formData: FormData): Promise<SettingsFormState> {
+  await requireAdmin();
+
+  const parsed = summaryTimesSchema.safeParse({
+    end_of_day_summary_time: formData.get("end_of_day_summary_time"),
+    admin_daily_summary_time: formData.get("admin_daily_summary_time"),
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message };
+
+  const supabase = await createClient();
+  const { error } = await supabase.from("system_settings").upsert(
+    Object.entries(parsed.data).map(([key, value]) => ({ key, value })),
+  );
+  if (error) return { error: "Không lưu được. Thử lại sau." };
+
+  revalidatePath("/settings");
+  return { ok: true };
+}
 
 export async function updateTeamSettings(_prev: SettingsFormState, formData: FormData): Promise<SettingsFormState> {
   await requireAdmin();

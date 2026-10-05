@@ -32,13 +32,13 @@ isOneToOne: false
                   ]
                 },"notification_logs": {
                   Row: {
-                    "channel": Database["public"]['Enums']["notification_channel"],"created_at": string,"dedupe_key": string | null,"error": string | null,"id": number,"kind": string,"payload": Json | null,"sent_at": string | null,"status": Database["public"]['Enums']["notification_status"],"task_id": string | null,"user_id": string
+                    "claimed_at": string | null,"created_at": string,"dedupe_key": string | null,"error": string | null,"external_message_id": string | null,"failed_at": string | null,"id": number,"payload": Json | null,"provider": Database["public"]['Enums']["notification_provider"],"retry_count": number,"scheduled_at": string,"sent_at": string | null,"status": Database["public"]['Enums']["notification_status"],"task_id": string | null,"type": Database["public"]['Enums']["notification_type"],"user_id": string
                   }
                   Insert: {
-                    "channel": Database["public"]['Enums']["notification_channel"],"created_at"?: string,"dedupe_key"?: string | null,"error"?: string | null,"id"?: never,"kind": string,"payload"?: Json | null,"sent_at"?: string | null,"status"?: Database["public"]['Enums']["notification_status"],"task_id"?: string | null,"user_id": string
+                    "claimed_at"?: string | null,"created_at"?: string,"dedupe_key"?: string | null,"error"?: string | null,"external_message_id"?: string | null,"failed_at"?: string | null,"id"?: never,"payload"?: Json | null,"provider": Database["public"]['Enums']["notification_provider"],"retry_count"?: number,"scheduled_at"?: string,"sent_at"?: string | null,"status"?: Database["public"]['Enums']["notification_status"],"task_id"?: string | null,"type": Database["public"]['Enums']["notification_type"],"user_id": string
                   }
                   Update: {
-                    "channel"?: Database["public"]['Enums']["notification_channel"],"created_at"?: string,"dedupe_key"?: string | null,"error"?: string | null,"id"?: never,"kind"?: string,"payload"?: Json | null,"sent_at"?: string | null,"status"?: Database["public"]['Enums']["notification_status"],"task_id"?: string | null,"user_id"?: string
+                    "claimed_at"?: string | null,"created_at"?: string,"dedupe_key"?: string | null,"error"?: string | null,"external_message_id"?: string | null,"failed_at"?: string | null,"id"?: never,"payload"?: Json | null,"provider"?: Database["public"]['Enums']["notification_provider"],"retry_count"?: number,"scheduled_at"?: string,"sent_at"?: string | null,"status"?: Database["public"]['Enums']["notification_status"],"task_id"?: string | null,"type"?: Database["public"]['Enums']["notification_type"],"user_id"?: string
                   }
                   Relationships: [
                     {
@@ -57,13 +57,13 @@ isOneToOne: false
                   ]
                 },"notification_settings": {
                   Row: {
-                    "created_at": string,"daily_summary_enabled": boolean,"daily_summary_time": string,"deadline_reminder_enabled": boolean,"overdue_alert_enabled": boolean,"remind_before_minutes": number,"updated_at": string,"user_id": string
+                    "created_at": string,"daily_summary_enabled": boolean,"daily_summary_time": string,"deadline_reminder_enabled": boolean,"end_of_day_summary_enabled": boolean,"overdue_alert_enabled": boolean,"remind_before_minutes": number,"updated_at": string,"user_id": string
                   }
                   Insert: {
-                    "created_at"?: string,"daily_summary_enabled"?: boolean,"daily_summary_time"?: string,"deadline_reminder_enabled"?: boolean,"overdue_alert_enabled"?: boolean,"remind_before_minutes"?: number,"updated_at"?: string,"user_id": string
+                    "created_at"?: string,"daily_summary_enabled"?: boolean,"daily_summary_time"?: string,"deadline_reminder_enabled"?: boolean,"end_of_day_summary_enabled"?: boolean,"overdue_alert_enabled"?: boolean,"remind_before_minutes"?: number,"updated_at"?: string,"user_id": string
                   }
                   Update: {
-                    "created_at"?: string,"daily_summary_enabled"?: boolean,"daily_summary_time"?: string,"deadline_reminder_enabled"?: boolean,"overdue_alert_enabled"?: boolean,"remind_before_minutes"?: number,"updated_at"?: string,"user_id"?: string
+                    "created_at"?: string,"daily_summary_enabled"?: boolean,"daily_summary_time"?: string,"deadline_reminder_enabled"?: boolean,"end_of_day_summary_enabled"?: boolean,"overdue_alert_enabled"?: boolean,"remind_before_minutes"?: number,"updated_at"?: string,"user_id"?: string
                   }
                   Relationships: [
                     {
@@ -177,11 +177,42 @@ isOneToOne: false
             "app_health":
 { Args: Record<PropertyKey, never>; Returns: Json
                            },
+"claim_notifications":
+{ Args: { "p_limit"?: number,"p_provider": Database["public"]['Enums']["notification_provider"] }; Returns: {
+              "claimed_at": string | null,
+"created_at": string,
+"dedupe_key": string | null,
+"error": string | null,
+"external_message_id": string | null,
+"failed_at": string | null,
+"id": number,
+"payload": Json | null,
+"provider": Database["public"]['Enums']["notification_provider"],
+"retry_count": number,
+"scheduled_at": string,
+"sent_at": string | null,
+"status": Database["public"]['Enums']["notification_status"],
+"task_id": string | null,
+"type": Database["public"]['Enums']["notification_type"],
+"user_id": string
+            }[]
+                          SetofOptions: {
+        from: "*"
+        to: "notification_logs"
+        isOneToOne: false
+        isSetofReturn: true
+      } },
+"complete_notification":
+{ Args: { "p_external_message_id"?: string,"p_id": number }; Returns: boolean
+                           },
 "display_status":
 { Args: { "t": Database["public"]['Tables']["tasks"]['Row'] }; Returns: Database["public"]['Enums']["task_display_status"]
                            },
 "ensure_today_fixed_tasks":
 { Args: Record<PropertyKey, never>; Returns: number
+                           },
+"fail_notification":
+{ Args: { "p_error": string,"p_id": number }; Returns: Database["public"]['Enums']["notification_status"]
                            },
 "reorder_fixed_task_templates":
 { Args: { "p_assignee_id": string,"p_ids": (string)[] }; Returns: undefined
@@ -229,7 +260,7 @@ isOneToOne: false
                            }
           }
           Enums: {
-            "app_role": "ADMIN"|"EMPLOYEE","notification_channel": "ZALO"|"IN_APP","notification_status": "PENDING"|"SENT"|"FAILED"|"SKIPPED","task_action": "CREATED"|"UPDATED"|"RESCHEDULED"|"COMPLETED"|"REOPENED","task_display_status": "UPCOMING"|"TODAY"|"OVERDUE"|"COMPLETED","task_type": "FIXED"|"ADHOC"
+            "app_role": "ADMIN"|"EMPLOYEE","notification_provider": "ZALO"|"IN_APP","notification_status": "PENDING"|"PROCESSING"|"SENT"|"FAILED","notification_type": "MORNING_SUMMARY"|"DEADLINE_REMINDER"|"OVERDUE_REMINDER"|"END_OF_DAY_SUMMARY"|"ADMIN_DAILY_SUMMARY"|"NEW_TASK"|"DEADLINE_CHANGED","task_action": "CREATED"|"UPDATED"|"RESCHEDULED"|"COMPLETED"|"REOPENED","task_display_status": "UPCOMING"|"TODAY"|"OVERDUE"|"COMPLETED","task_type": "FIXED"|"ADHOC"
           }
           CompositeTypes: {
             [_ in never]: never
@@ -345,7 +376,7 @@ export type CompositeTypes<
 export const Constants = {
   "public": {
           Enums: {
-            "app_role": ["ADMIN", "EMPLOYEE"],"notification_channel": ["ZALO", "IN_APP"],"notification_status": ["PENDING", "SENT", "FAILED", "SKIPPED"],"task_action": ["CREATED", "UPDATED", "RESCHEDULED", "COMPLETED", "REOPENED"],"task_display_status": ["UPCOMING", "TODAY", "OVERDUE", "COMPLETED"],"task_type": ["FIXED", "ADHOC"]
+            "app_role": ["ADMIN", "EMPLOYEE"],"notification_provider": ["ZALO", "IN_APP"],"notification_status": ["PENDING", "PROCESSING", "SENT", "FAILED"],"notification_type": ["MORNING_SUMMARY", "DEADLINE_REMINDER", "OVERDUE_REMINDER", "END_OF_DAY_SUMMARY", "ADMIN_DAILY_SUMMARY", "NEW_TASK", "DEADLINE_CHANGED"],"task_action": ["CREATED", "UPDATED", "RESCHEDULED", "COMPLETED", "REOPENED"],"task_display_status": ["UPCOMING", "TODAY", "OVERDUE", "COMPLETED"],"task_type": ["FIXED", "ADHOC"]
           }
         }
 } as const

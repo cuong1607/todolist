@@ -152,3 +152,19 @@ Làm sau Phase 4–5 (spec đến sau) — migration `20261003040000_core_schema
 - [x] Tính toán trong Postgres: `report_summary(from, to)` (theo nhân viên), `report_daily(from, to)` (theo ngày) — không kéo task thô về frontend
 - [x] Test: `test:db` (91), `test:rls` (+5), `test:e2e` (67)
 - [ ] Đẩy migration `20261005005534_reporting` lên cloud (`npm run db:push`) rồi deploy
+
+## Phase 9. Notification Engine
+
+Luồng: trạng thái công việc → **scheduler** (`private.schedule_notifications`, pg_cron mỗi phút) → **`notification_logs`** (hàng đợi + nhật ký) → **provider**.
+
+- [x] `notification_logs` theo spec: `type`, `provider`, `payload`, `scheduled_at`, `status` (PENDING · PROCESSING · SENT · FAILED), `sent_at`, `failed_at`, `retry_count`, `error`, `external_message_id`, `dedupe_key`
+- [x] Loại thông báo đang chạy: MORNING_SUMMARY (giờ từng người chọn), DEADLINE_REMINDER (trước hạn n phút; bỏ qua deadline chỉ có ngày), OVERDUE_REMINDER (một lần cho mỗi deadline, trong 24 giờ đầu), END_OF_DAY_SUMMARY, ADMIN_DAILY_SUMMARY (giờ do admin đặt ở Cài đặt)
+- [x] Chống gửi trùng: unique `(provider, dedupe_key)`, ví dụ `morning-summary:<user>:2026-10-03`; chạy scheduler bao nhiêu lần cũng không tạo trùng
+- [x] API giao hàng không phụ thuộc kênh: `claim_notifications` / `complete_notification` / `fail_notification` (chỉ service role); lỗi thì thử lại sau 1 và 5 phút, lần thứ 3 là FAILED; dòng PROCESSING quá 10 phút được trả lại hàng đợi
+- [x] Provider IN_APP giao ngay trong DB → hộp thông báo `/notifications` (chuông ở header). Engine chạy đầy đủ dù chưa có Zalo OA
+- [x] Sẵn chỗ cho Zalo: thành viên có `zalo_connected` sẽ có thêm một dòng provider ZALO; worker Zalo chỉ cần gọi 3 hàm trên
+- [x] Admin: đặt giờ gửi tổng kết + xem nhật ký gửi (`/settings/notifications`, lọc theo trạng thái). Nhân viên: thêm công tắc "Tổng kết cuối ngày"
+- [x] Test: `test:db` (115), `test:rls` (+8), `test:e2e` (72 — có kiểm tra cron thật tạo và giao thông báo)
+- [ ] Chưa làm (tuỳ chọn trong spec): NEW_TASK, DEADLINE_CHANGED — hiện nhân viên tự tạo và tự dời việc của mình nên chưa có người cần báo; đã có sẵn trong enum
+- [ ] Chưa có: đánh dấu đã đọc / số thông báo chưa đọc trên chuông
+- [ ] Đẩy migration `20261005011149_notification_engine` lên cloud (`npm run db:push`) rồi deploy

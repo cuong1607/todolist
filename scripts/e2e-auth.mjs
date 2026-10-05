@@ -208,7 +208,35 @@ try {
   await page.getByRole("link", { name: "Tháng này" }).waitFor();
   check("month navigation works", (await page.locator("button[aria-current=date]").count()) === 0);
 
-  for (const adminPath of ["/members", "/overview", "/reports", "/settings", "/fixed-tasks"]) {
+  // ---------- notification engine: a task due soon → reminder shows up in the in-app inbox ----------
+  // Deadline in 20 minutes is inside the default 30-minute reminder window, so the per-minute
+  // scheduler should queue and deliver it on its next tick.
+  const dueSoon = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Bangkok", hour: "2-digit", minute: "2-digit", hour12: false }).format(
+    new Date(Date.now() + 20 * 60_000),
+  );
+  await page.goto(`${BASE}/today`);
+  await page.getByRole("button", { name: "Thêm việc", exact: true }).click();
+  await dialog.getByLabel("Tên công việc").fill("E2E nhắc hạn");
+  await dialog.getByRole("radio", { name: "Hôm nay" }).click();
+  await dialog.getByLabel("Giờ (tuỳ chọn)").fill(dueSoon);
+  await dialog.getByRole("button", { name: "Thêm việc", exact: true }).click();
+  await region(/^Đến hạn hôm nay/).getByText("E2E nhắc hạn").waitFor();
+
+  await page.getByRole("link", { name: "Thông báo" }).click();
+  await page.waitForURL("**/notifications");
+  let reminded = false;
+  for (let attempt = 0; attempt < 20 && !reminded; attempt++) {
+    reminded = (await page.getByText(`“E2E nhắc hạn” đến hạn lúc ${dueSoon}.`).count()) > 0;
+    if (!reminded) {
+      await page.waitForTimeout(5000);
+      await page.reload();
+    }
+  }
+  check("scheduler queues a deadline reminder and the in-app provider delivers it", reminded);
+  check("each notification is delivered once (dedupe)", (await page.getByText("“E2E nhắc hạn” đến hạn lúc").count()) === 1);
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/e2e-notifications.png`, fullPage: true });
+
+  for (const adminPath of ["/members", "/overview", "/reports", "/settings", "/settings/notifications", "/fixed-tasks"]) {
     await page.goto(`${BASE}${adminPath}`);
     check(`employee blocked from ${adminPath}`, path(page) === "/today", page.url());
   }
@@ -246,11 +274,11 @@ try {
   check("admin lands on /overview", path(page) === "/overview", page.url());
 
   // ---------- admin dashboard ----------
-  // An today: 3 fixed (none done) + ad-hoc: 1 carried-over overdue, 1 due today, 1 finished today (E2E phát sinh).
+  // An today: 3 fixed (none done) + ad-hoc: 1 carried-over overdue, 2 due today (one is E2E nhắc hạn), 1 finished today (E2E phát sinh).
   const anCard = page.getByRole("link", { name: /^Nguyễn Văn An:/ });
   await anCard.waitFor();
   const anText = await anCard.textContent();
-  check("dashboard card shows fixed and ad-hoc completion per member", anText?.includes("Cố định0/3") && anText.includes("Phát sinh1/3"), anText);
+  check("dashboard card shows fixed and ad-hoc completion per member", anText?.includes("Cố định0/3") && anText.includes("Phát sinh1/4"), anText);
   check("…and flags who is overdue", /quá hạn/.test((await anCard.getAttribute("aria-label")) ?? ""), await anCard.getAttribute("aria-label"));
   const summary = (await page.locator("dl").first().textContent()) ?? "";
   check("summary cards: total · done · not done · overdue", /Tổng việc\d+Đã hoàn thành\d+Chưa hoàn thành\d+Quá hạn\d+/.test(summary), summary);
@@ -306,18 +334,18 @@ try {
   await page.getByLabel("Đến ngày").fill(TODAY);
   await page.getByRole("button", { name: "Xem" }).click();
   await page.waitForURL(new RegExp(`from=${TODAY}&to=${TODAY}`));
-  check("custom range matches 'Hôm nay' for the same day", (await page.getByRole("link", { name: /^Nguyễn Văn An:/ }).textContent())?.includes("Phát sinh1/3"));
+  check("custom range matches 'Hôm nay' for the same day", (await page.getByRole("link", { name: /^Nguyễn Văn An:/ }).textContent())?.includes("Phát sinh1/4"));
 
   // ---------- reports ----------
   await page.goto(`${BASE}/reports?period=day`);
   await page.getByText("Tỷ lệ hoàn thành công việc").waitFor();
   const fixedReport = (await page.getByRole("region", { name: "Việc cố định" }).textContent()) ?? "";
   check("report: fixed completion rate with expected / completed / missed", /0%.*Cần làm\d+Đã hoàn thành0Bỏ lỡ0/.test(fixedReport), fixedReport);
-  // Seed: 3 ad-hoc created today (+ E2E phát sinh, done on time); 4 still open, 1 of them late since yesterday.
+  // Seed: 3 ad-hoc created today, + E2E phát sinh (done on time) + E2E nhắc hạn; 5 still open, 1 of them late since yesterday.
   const adhocReport = (await page.getByRole("region", { name: "Việc phát sinh" }).textContent()) ?? "";
   check(
     "report: ad-hoc created / completed / on time / outstanding / overdue",
-    /Tạo mới4Hoàn thành1Đúng hạn1.*Đang tồn4.*Quá hạn1/.test(adhocReport),
+    /Tạo mới5Hoàn thành1Đúng hạn1.*Đang tồn5.*Quá hạn1/.test(adhocReport),
     adhocReport,
   );
   check("report compares employees", await page.getByRole("meter", { name: "Tỷ lệ hoàn thành của Nguyễn Văn An" }).isVisible());
@@ -335,7 +363,7 @@ try {
   await page.getByLabel("Đến ngày").fill(TODAY);
   await page.getByRole("button", { name: "Xem" }).click();
   await page.waitForURL(new RegExp(`period=custom&from=${TODAY}&to=${TODAY}`));
-  check("report: custom range", /Tạo mới4/.test((await page.getByRole("region", { name: "Việc phát sinh" }).textContent()) ?? ""));
+  check("report: custom range", /Tạo mới5/.test((await page.getByRole("region", { name: "Việc phát sinh" }).textContent()) ?? ""));
 
   await page.goto(`${BASE}/members`);
   const rows = page.getByRole("listitem");
@@ -396,6 +424,27 @@ try {
   await page.getByLabel("Tên team").fill("Team Todo");
   await page.getByRole("button", { name: "Lưu", exact: true }).click();
   await page.getByRole("link", { name: "Team Todo" }).first().waitFor();
+
+  // ---------- admin: notification times + log ----------
+  await page.getByLabel("Cho admin (cả team)").fill("18:15");
+  await page.getByRole("button", { name: "Lưu giờ gửi" }).click();
+  await page.getByText("Đã lưu giờ gửi tổng kết").waitFor();
+  await page.reload();
+  check("admin sets when the daily summaries go out", (await page.getByLabel("Cho admin (cả team)").inputValue()) === "18:15");
+  await page.getByLabel("Cho admin (cả team)").fill("18:00");
+  await page.getByRole("button", { name: "Lưu giờ gửi" }).click();
+  await page.getByText("Đã lưu giờ gửi tổng kết").waitFor();
+
+  await page.getByRole("link", { name: /Nhật ký gửi thông báo/ }).click();
+  await page.waitForURL("**/settings/notifications");
+  const logRow = page.getByRole("listitem").filter({ hasText: "“E2E nhắc hạn”" });
+  const logText = (await logRow.first().textContent()) ?? "";
+  check(
+    "notification log shows type, recipient, provider and status",
+    logText.includes("Đã gửi") && logText.includes("Nhắc deadline") && logText.includes("Nguyễn Văn An") && logText.includes("Trong ứng dụng"),
+    logText,
+  );
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/e2e-admin-notification-log.png`, fullPage: true });
 
   await logout(page);
   await login(page, "binh@team.local");

@@ -36,6 +36,7 @@ const notificationSchema = z.object({
   deadline_reminder_enabled: z.boolean(),
   remind_before_minutes: z.coerce.number().int().min(5, "Nhắc trước ít nhất 5 phút").max(1440, "Nhắc trước tối đa 1 ngày"),
   overdue_alert_enabled: z.boolean(),
+  end_of_day_summary_enabled: z.boolean(),
 });
 
 export async function updateNotificationSettings(_prev: ProfileFormState, formData: FormData): Promise<ProfileFormState> {
@@ -47,6 +48,7 @@ export async function updateNotificationSettings(_prev: ProfileFormState, formDa
     deadline_reminder_enabled: formData.get("deadline_reminder_enabled") === "on",
     remind_before_minutes: formData.get("remind_before_minutes"),
     overdue_alert_enabled: formData.get("overdue_alert_enabled") === "on",
+    end_of_day_summary_enabled: formData.get("end_of_day_summary_enabled") === "on",
   });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message };
 

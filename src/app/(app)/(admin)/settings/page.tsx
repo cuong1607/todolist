@@ -5,14 +5,15 @@ import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ThemeSelector } from "@/components/theme-toggle";
-import { getTeamName } from "@/lib/settings";
+import { getSummaryTimes, getTeamName } from "@/lib/settings";
+import { SummaryTimesForm } from "./summary-times-form";
 import { checkSupabaseHealth, type SupabaseHealth } from "@/lib/supabase/health";
 import { TeamForm } from "./team-form";
 
 export const metadata: Metadata = { title: "Cài đặt" };
 
 export default async function SettingsPage() {
-  const [health, teamName] = await Promise.all([checkSupabaseHealth(), getTeamName()]);
+  const [health, teamName, summaryTimes] = await Promise.all([checkSupabaseHealth(), getTeamName(), getSummaryTimes()]);
 
   return (
     <>
@@ -25,6 +26,26 @@ export default async function SettingsPage() {
           </CardHeader>
           <CardContent>
             <TeamForm teamName={teamName} />
+          </CardContent>
+        </Card>
+
+        <Card className="md:col-span-2">
+          <CardHeader>
+            <CardTitle>Thông báo</CardTitle>
+            <CardDescription>Giờ gửi tổng kết cuối ngày. Giờ tóm tắt buổi sáng do từng người tự chọn ở Tài khoản.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <SummaryTimesForm endOfDay={summaryTimes.endOfDay} adminDaily={summaryTimes.adminDaily} />
+            <Link
+              href="/settings/notifications"
+              className="flex items-center gap-3 rounded-xl bg-muted px-4 py-3 outline-none transition-colors duration-(--duration-normal) hover:bg-muted/70 focus-visible:ring-3 focus-visible:ring-ring/50"
+            >
+              <span className="flex-1">
+                <span className="block font-medium">Nhật ký gửi thông báo</span>
+                <span className="block text-caption text-muted-foreground">Đã gửi, đang chờ, thất bại</span>
+              </span>
+              <ChevronRight className="size-5 text-muted-foreground" />
+            </Link>
           </CardContent>
         </Card>
 

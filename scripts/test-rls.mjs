@@ -317,7 +317,7 @@ async function signIn(email) {
   const { data: allSettings } = await admin.from("notification_settings").select("user_id");
   check("admin reads all notification settings", allSettings?.length === 3, allSettings?.length);
 
-  const { error: logWriteErr } = await an.from("notification_logs").insert({ user_id: AN, channel: "ZALO", kind: "TEST" });
+  const { error: logWriteErr } = await an.from("notification_logs").insert({ user_id: AN, provider: "ZALO", type: "NEW_TASK" });
   check("employee cannot write notification logs", !!logWriteErr, logWriteErr);
 
   const { data: settingsRead } = await an.from("system_settings").select("key");
@@ -386,6 +386,49 @@ async function signIn(email) {
     anDaily?.[0]?.fixed_expected === 3 && teamDaily?.[0]?.fixed_expected > 3,
     [anDaily?.[0]?.fixed_expected, teamDaily?.[0]?.fixed_expected],
   );
+}
+
+// ---------- Phase 9: notification engine ----------
+{
+  const service = createClient(url, process.env.SUPABASE_SECRET_KEY, { auth: { persistSession: false } });
+  const an = await signIn("an@team.local");
+  const binh = await signIn("binh@team.local");
+  const admin = await signIn("admin@team.local");
+
+  for (const [name, client] of [["employee", an], ["admin", admin]]) {
+    const { data, error } = await client.rpc("claim_notifications", { p_provider: "IN_APP" });
+    check(`${name} cannot call the delivery API (claim_notifications)`, !!error && !data, data);
+  }
+  const { error: completeErr } = await an.rpc("complete_notification", { p_id: 1 });
+  check("employee cannot mark notifications as sent", !!completeErr, completeErr);
+
+  // A provider worker (service role) drives a notification through the queue.
+  const dedupe = `rls-test:${Date.now()}`;
+  const { data: queued, error: queueErr } = await service
+    .from("notification_logs")
+    .insert({ user_id: AN, type: "NEW_TASK", provider: "ZALO", dedupe_key: dedupe, payload: { title: "RLS", body: "test" } })
+    .select("id")
+    .single();
+  const { error: dupErr } = await service
+    .from("notification_logs").insert({ user_id: AN, type: "NEW_TASK", provider: "ZALO", dedupe_key: dedupe });
+  check("the same dedupe_key cannot be queued twice for a provider", !queueErr && dupErr?.code === "23505", dupErr ?? queueErr);
+
+  const { data: claimed, error: claimErr } = await service.rpc("claim_notifications", { p_provider: "ZALO" });
+  check("worker (service role) claims due notifications", claimed?.some((n) => n.id === queued.id && n.status === "PROCESSING"), claimErr ?? claimed);
+  const { data: completed } = await service.rpc("complete_notification", { p_id: queued.id, p_external_message_id: "msg-1" });
+  const { data: sent } = await service.from("notification_logs").select("status, sent_at, external_message_id").eq("id", queued.id).single();
+  check(
+    "worker reports success: SENT with sent_at and the provider's message id",
+    completed === true && sent?.status === "SENT" && !!sent.sent_at && sent.external_message_id === "msg-1",
+    sent,
+  );
+
+  const { data: mine } = await an.from("notification_logs").select("id").eq("id", queued.id);
+  check("member reads own notification log", mine?.length === 1, mine);
+  const { data: others } = await binh.from("notification_logs").select("id").eq("id", queued.id);
+  check("member cannot read another member's notifications", others?.length === 0, others);
+
+  await service.from("notification_logs").delete().eq("id", queued.id);
 }
 
 console.log(failed ? `\n${failed} check(s) FAILED` : "\nAll RLS checks passed");
