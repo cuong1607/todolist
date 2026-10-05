@@ -1,6 +1,7 @@
 import {
   CalendarCheck,
   CalendarDays,
+  ChartColumn,
   LayoutDashboard,
   LayoutList,
   Repeat,
@@ -29,6 +30,7 @@ export const navByRole: Record<Role, NavItem[]> = {
   ADMIN: [
     { href: "/overview", label: "Tổng quan", icon: LayoutDashboard },
     { href: "/fixed-tasks", label: "Việc cố định", icon: Repeat },
+    { href: "/reports", label: "Báo cáo", icon: ChartColumn },
     { href: "/members", label: "Thành viên", icon: Users },
     { href: "/settings", label: "Cài đặt", icon: Settings },
   ],
@@ -44,6 +46,7 @@ const titles: Record<string, string> = {
   "/tasks": "Công việc",
   "/profile": "Tài khoản",
   "/overview": "Tổng quan",
+  "/reports": "Báo cáo",
   "/members": "Thành viên",
   "/fixed-tasks": "Việc cố định",
   "/settings": "Cài đặt",

@@ -140,4 +140,15 @@ Làm sau Phase 4–5 (spec đến sau) — migration `20261003040000_core_schema
 - [x] Realtime: số liệu tự cập nhật khi nhân viên tick (không reload); tự làm mới mỗi phút để "quá hạn" luôn đúng
 - [x] Một định nghĩa "việc thuộc khoảng thời gian" trong SQL (`private.task_in_range`) cho cả số tổng (`team_overview`) và danh sách (`tasks_in_range`). Việc phát sinh không deadline chưa xong ("việc đang tồn") không tính — giống thanh tiến độ ở Hôm nay
 - [x] Test: `test:db` (83), `test:rls` (+5), `test:e2e` (60)
-- [ ] Đẩy migration `20261005004136_team_overview` lên cloud (`npm run db:push`) rồi deploy
+- [x] Đẩy migration `20261005004136_team_overview` lên cloud và deploy
+
+## Phase 8. Reporting
+
+- [x] `/reports` (admin): kỳ Ngày · Tuần · Tháng (có nút kỳ trước / kỳ sau) · Tuỳ chọn (tối đa 92 ngày); lưu trên URL
+- [x] Việc cố định: cần làm (expected) · đã hoàn thành · bỏ lỡ · **Tỷ lệ hoàn thành công việc** = completed / expected × 100. Việc hôm nay chưa xong tính là đang chờ, chưa phải bỏ lỡ
+- [x] Việc phát sinh: tạo mới · hoàn thành · đúng hạn (không deadline = đúng hạn) · đang tồn · quá hạn (hai số cuối tính tại cuối kỳ)
+- [x] Không gộp thành một điểm hiệu suất — hai nhóm số liệu tách riêng
+- [x] Biểu đồ: xu hướng hoàn thành (đường), xu hướng quá hạn (cột), so sánh nhân viên (thanh ngang); có tooltip, điều khiển bằng phím mũi tên và bảng số liệu theo ngày
+- [x] Tính toán trong Postgres: `report_summary(from, to)` (theo nhân viên), `report_daily(from, to)` (theo ngày) — không kéo task thô về frontend
+- [x] Test: `test:db` (91), `test:rls` (+5), `test:e2e` (67)
+- [ ] Đẩy migration `20261005005534_reporting` lên cloud (`npm run db:push`) rồi deploy

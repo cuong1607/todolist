@@ -64,6 +64,12 @@ Schema (Phase 3): `fixed_task_templates`, `tasks`, `task_history`, `notification
 - Live updates: `OverviewRealtime` subscribes to `tasks` and calls a debounced `router.refresh()` (plus a 60s tick so overdue stays current). No client-side copy of the numbers.
 - Tailwind merge gotcha: `cn("text-display", "text-success")` drops `text-display` (custom font-size utilities are treated as colours). Put the colour on an inner element.
 
+## Reporting (Phase 8)
+- `src/app/(app)/(admin)/reports/`: URL-driven Server Component — `?period=day|week|month` (+ `date` anchor) or `?period=custom&from=&to=`. Parse with `resolvePeriod()`, link with `reportHref()`.
+- All aggregation is in SQL: `public.report_summary(from, to)` (per member) and `public.report_daily(from, to)` (per day, team-wide, stops at today). Never pull raw tasks to compute metrics in TS. Metric definitions are documented at the top of the `reporting` migration — change them there, with `supabase/tests/reporting.test.sql`.
+- No combined performance score. The headline is "Tỷ lệ hoàn thành công việc" = fixed completed / expected; show "—" (not 0%) when nothing was expected.
+- Charts: `TrendChart` (hand-rolled SVG, single series, one y-axis). Marks take the hue via `currentColor`; text stays in text tokens. Every charted value must also be in the daily table.
+
 ## Database
 - Every schema change goes through a migration: `npm run db:new <name>` → edit SQL in `supabase/migrations/` → `npm run db:reset` → `npm run db:types`.
 - Never change the database by hand (Studio/SQL editor) without a matching migration.

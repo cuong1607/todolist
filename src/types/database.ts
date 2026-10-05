@@ -186,6 +186,16 @@ isOneToOne: false
 "reorder_fixed_task_templates":
 { Args: { "p_assignee_id": string,"p_ids": (string)[] }; Returns: undefined
                            },
+"report_daily":
+{ Args: { "p_from": string,"p_to": string }; Returns: {
+              "adhoc_completed": number,"adhoc_created": number,"adhoc_overdue": number,"day": string,"fixed_completed": number,"fixed_expected": number,"fixed_missed": number
+            }[]
+                           },
+"report_summary":
+{ Args: { "p_from": string,"p_to": string }; Returns: {
+              "adhoc_completed": number,"adhoc_created": number,"adhoc_on_time": number,"adhoc_outstanding": number,"adhoc_overdue": number,"assignee_id": string,"fixed_completed": number,"fixed_expected": number,"fixed_missed": number
+            }[]
+                           },
 "tasks_in_range":
 { Args: { "p_assignee_id": string,"p_from": string,"p_to": string }; Returns: {
               "allow_employee_note": boolean,

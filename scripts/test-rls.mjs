@@ -356,5 +356,37 @@ async function signIn(email) {
   check("admin lists a member's tasks via tasks_in_range", (binhTasks ?? []).length >= 1 && binhTasks.every((t) => t.assignee_id === BINH), binhTasks?.length);
 }
 
+// ---------- Phase 8: reporting RPCs ----------
+{
+  const anon = newClient();
+  const an = await signIn("an@team.local");
+  const admin = await signIn("admin@team.local");
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(new Date());
+  const args = { p_from: today, p_to: today };
+
+  for (const fn of ["report_summary", "report_daily"]) {
+    const { data, error } = await anon.rpc(fn, args);
+    check(`anon cannot call ${fn}`, !!error && !data, data);
+  }
+
+  const { data: own } = await an.rpc("report_summary", args);
+  check("employee calling report_summary sees only own numbers", own?.length === 1 && own[0].assignee_id === AN, own);
+
+  const { data: team } = await admin.rpc("report_summary", args);
+  check(
+    "admin report covers the team (An: 3 fixed expected today)",
+    team?.length >= 2 && team.find((r) => r.assignee_id === AN)?.fixed_expected === 3,
+    team,
+  );
+
+  const { data: anDaily } = await an.rpc("report_daily", args);
+  const { data: teamDaily } = await admin.rpc("report_daily", args);
+  check(
+    "report_daily is scoped by RLS too (employee's day < team's day)",
+    anDaily?.[0]?.fixed_expected === 3 && teamDaily?.[0]?.fixed_expected > 3,
+    [anDaily?.[0]?.fixed_expected, teamDaily?.[0]?.fixed_expected],
+  );
+}
+
 console.log(failed ? `\n${failed} check(s) FAILED` : "\nAll RLS checks passed");
 process.exit(failed ? 1 : 0);

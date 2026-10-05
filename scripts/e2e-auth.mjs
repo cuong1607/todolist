@@ -208,7 +208,7 @@ try {
   await page.getByRole("link", { name: "Tháng này" }).waitFor();
   check("month navigation works", (await page.locator("button[aria-current=date]").count()) === 0);
 
-  for (const adminPath of ["/members", "/overview", "/settings", "/fixed-tasks"]) {
+  for (const adminPath of ["/members", "/overview", "/reports", "/settings", "/fixed-tasks"]) {
     await page.goto(`${BASE}${adminPath}`);
     check(`employee blocked from ${adminPath}`, path(page) === "/today", page.url());
   }
@@ -307,6 +307,35 @@ try {
   await page.getByRole("button", { name: "Xem" }).click();
   await page.waitForURL(new RegExp(`from=${TODAY}&to=${TODAY}`));
   check("custom range matches 'Hôm nay' for the same day", (await page.getByRole("link", { name: /^Nguyễn Văn An:/ }).textContent())?.includes("Phát sinh1/3"));
+
+  // ---------- reports ----------
+  await page.goto(`${BASE}/reports?period=day`);
+  await page.getByText("Tỷ lệ hoàn thành công việc").waitFor();
+  const fixedReport = (await page.getByRole("region", { name: "Việc cố định" }).textContent()) ?? "";
+  check("report: fixed completion rate with expected / completed / missed", /0%.*Cần làm\d+Đã hoàn thành0Bỏ lỡ0/.test(fixedReport), fixedReport);
+  // Seed: 3 ad-hoc created today (+ E2E phát sinh, done on time); 4 still open, 1 of them late since yesterday.
+  const adhocReport = (await page.getByRole("region", { name: "Việc phát sinh" }).textContent()) ?? "";
+  check(
+    "report: ad-hoc created / completed / on time / outstanding / overdue",
+    /Tạo mới4Hoàn thành1Đúng hạn1.*Đang tồn4.*Quá hạn1/.test(adhocReport),
+    adhocReport,
+  );
+  check("report compares employees", await page.getByRole("meter", { name: "Tỷ lệ hoàn thành của Nguyễn Văn An" }).isVisible());
+  await page.getByRole("link", { name: "Kỳ trước" }).click();
+  await page.waitForURL(/date=\d{4}-\d{2}-\d{2}/);
+  check("report steps to the previous day; yesterday's overdue task was created then", /Tạo mới1/.test((await page.getByRole("region", { name: "Việc phát sinh" }).textContent()) ?? ""));
+  const periods = page.getByRole("navigation", { name: "Kỳ báo cáo" });
+  await periods.getByRole("link", { name: "Tháng" }).click();
+  await page.waitForURL(/period=month/);
+  await page.getByText("Bảng số liệu theo ngày").click();
+  check("report: month view has a daily table", (await page.getByRole("row").count()) >= 2);
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/e2e-admin-reports.png`, fullPage: true });
+  await periods.getByRole("link", { name: "Tuỳ chọn" }).click();
+  await page.getByLabel("Từ ngày").fill(TODAY);
+  await page.getByLabel("Đến ngày").fill(TODAY);
+  await page.getByRole("button", { name: "Xem" }).click();
+  await page.waitForURL(new RegExp(`period=custom&from=${TODAY}&to=${TODAY}`));
+  check("report: custom range", /Tạo mới4/.test((await page.getByRole("region", { name: "Việc phát sinh" }).textContent()) ?? ""));
 
   await page.goto(`${BASE}/members`);
   const rows = page.getByRole("listitem");

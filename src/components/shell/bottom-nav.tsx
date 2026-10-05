@@ -26,7 +26,8 @@ export function BottomNav({ role }: { role: Role }) {
                 href={item.href}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "flex h-full flex-col items-center justify-center gap-1 text-micro font-medium outline-none transition-colors duration-(--duration-normal)",
+                  // Arbitrary size on purpose: merged with a text colour, `text-micro` would be dropped.
+                  "flex h-full flex-col items-center justify-center gap-1 text-[0.6875rem] leading-4 font-medium whitespace-nowrap outline-none transition-colors duration-(--duration-normal)",
                   active ? "text-primary" : "text-muted-foreground",
                 )}
               >
