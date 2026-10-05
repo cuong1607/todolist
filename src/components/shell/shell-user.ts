@@ -6,4 +6,6 @@ export type ShellUser = {
   email: string;
   avatarUrl: string | null;
   role: Role;
+  /** Team display name from system settings, shown as the brand. */
+  teamName: string;
 };

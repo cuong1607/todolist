@@ -19,7 +19,7 @@ export function Sidebar({ user }: { user: ShellUser }) {
   return (
     <aside className="fixed inset-y-0 left-0 z-30 hidden w-sidebar flex-col border-r bg-sidebar md:flex">
       <div className="flex h-topbar items-center px-5">
-        <Brand />
+        <Brand name={user.teamName} />
       </div>
 
       <nav aria-label="Điều hướng chính" className="flex flex-1 flex-col gap-1 px-3 py-4">

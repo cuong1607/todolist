@@ -50,6 +50,13 @@ Schema (Phase 3): `fixed_task_templates`, `tasks`, `task_history`, `notification
 - Cards stay minimal (checkbox · title · deadline · 1-line note); details/edit/notes open in a sheet. Interaction animations 150–250ms.
 - `Dialog` renders as a bottom sheet below `sm`. `Fab` adds its own bottom spacer; use `extended` for the screen's primary action.
 
+## History, calendar, settings
+- `/tasks` (history) and `/calendar` are read-only: they reuse `TODAY_TASK_COLUMNS`/`TodayTask`, and share `TaskRow` + `TaskDetailDialog` from `src/app/(app)/tasks/`. Ticking/editing stays on Today.
+- History is paged by date window (`?before=YYYY-MM-DD`, 14 days): FIXED on `task_date` (past days, done or missed), ADHOC on the day it was completed. Calendar (`?month=YYYY-MM`): FIXED on `task_date`, ADHOC on its deadline (or completion day if it had none).
+- Both pages filter by `assignee_id = me.id` explicitly (RLS alone shows admins everyone's tasks).
+- Change log: `getTaskTimeline()` reads `task_history`; actors are shown as Bạn / Hệ thống / Quản lý (employees can't read other profiles).
+- Team name: `getTeamName()` in `@/lib/settings` (`system_settings.team_name`), passed to the shell via `ShellUser.teamName`. Notification preferences are stored only — no sender job yet.
+
 ## Database
 - Every schema change goes through a migration: `npm run db:new <name>` → edit SQL in `supabase/migrations/` → `npm run db:reset` → `npm run db:types`.
 - Never change the database by hand (Studio/SQL editor) without a matching migration.

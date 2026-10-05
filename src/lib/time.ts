@@ -32,6 +32,18 @@ export function formatDateLong(date: string) {
   }).format(new Date(`${date}T12:00:00+07:00`));
 }
 
+/** "5/10" — or "5/10/2025" when the year differs from the current one. */
+export function formatDateShort(date: string, now = new Date()) {
+  const [y, m, d] = date.split("-");
+  const short = `${Number(d)}/${Number(m)}`;
+  return y === todayLocal(now).slice(0, 4) ? short : `${short}/${y}`;
+}
+
+/** ISO weekday (1 = Monday … 7 = Sunday) of a YYYY-MM-DD date. */
+export function isoWeekday(date: string) {
+  return ((new Date(`${date}T12:00:00Z`).getUTCDay() + 6) % 7) + 1;
+}
+
 /** Add days to a YYYY-MM-DD date. */
 export function addDays(date: string, days: number) {
   const d = new Date(`${date}T12:00:00Z`);

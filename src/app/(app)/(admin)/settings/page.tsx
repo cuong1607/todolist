@@ -5,17 +5,29 @@ import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ThemeSelector } from "@/components/theme-toggle";
+import { getTeamName } from "@/lib/settings";
 import { checkSupabaseHealth, type SupabaseHealth } from "@/lib/supabase/health";
+import { TeamForm } from "./team-form";
 
 export const metadata: Metadata = { title: "Cài đặt" };
 
 export default async function SettingsPage() {
-  const health = await checkSupabaseHealth();
+  const [health, teamName] = await Promise.all([checkSupabaseHealth(), getTeamName()]);
 
   return (
     <>
       <PageHeader title="Cài đặt" />
       <div className="grid gap-4 md:grid-cols-2">
+        <Card className="md:col-span-2">
+          <CardHeader>
+            <CardTitle>Thông tin team</CardTitle>
+            <CardDescription>Tên hiển thị ở đầu ứng dụng cho mọi thành viên.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <TeamForm teamName={teamName} />
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <CardTitle>Giao diện</CardTitle>

@@ -9,6 +9,8 @@ import { chromium } from "playwright-core";
 const BASE = process.env.E2E_BASE_URL ?? "http://localhost:3000";
 const SHOTS = process.env.E2E_SCREENSHOTS;
 const PASSWORD = "Password123!";
+/** Today in the app timezone (must match APP_TIMEZONE). */
+const TODAY = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(new Date());
 
 let failed = 0;
 function check(name, ok, detail) {
@@ -172,6 +174,40 @@ try {
   await page.reload();
   check("employee note persists and shows as the card preview", await page.getByText("Tồn kho: 42").isVisible());
 
+  // ---------- history (Công việc) ----------
+  await page.goto(`${BASE}/tasks`);
+  const historyToday = region(/^Hôm nay/);
+  await historyToday.getByText("E2E phát sinh").waitFor();
+  check("history lists today's completed ad-hoc under 'Hôm nay'", (await historyToday.getByText("1/1 xong").count()) === 1);
+  check("history leaves out today's unfinished fixed tasks", (await page.getByText("Kiểm tra đơn hàng mới").count()) === 0);
+  await page.getByRole("button", { name: "Chi tiết “E2E phát sinh”" }).click();
+  await dialog.getByText("Bạn hoàn thành").waitFor();
+  const timeline = (await dialog.getByRole("listitem").allTextContents()).join(" | ");
+  check(
+    "task detail shows its change log (created → rescheduled → completed)",
+    timeline.includes("Bạn tạo việc") && timeline.includes("Bạn dời deadline") && timeline.includes("Bạn hoàn thành"),
+    timeline,
+  );
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/e2e-history-detail.png` });
+  await page.keyboard.press("Escape");
+  await dialog.waitFor({ state: "hidden" });
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/e2e-history.png`, fullPage: true });
+
+  // ---------- calendar (Lịch) ----------
+  await page.goto(`${BASE}/calendar`);
+  const [calYear, calMonth, calDay] = TODAY.split("-").map(Number);
+  await page.getByRole("heading", { name: `Tháng ${calMonth}, ${calYear}` }).waitFor();
+  const todayCell = page.locator("button[aria-current=date]");
+  check("calendar opens on the current month with today selected", (await todayCell.getAttribute("aria-pressed")) === "true" && (await todayCell.textContent())?.trim() === String(calDay));
+  check("selected day lists that day's fixed tasks", await page.getByText("Kiểm tra đơn hàng mới").isVisible());
+  check("…and ad-hoc tasks due that day", await page.getByText("Gọi lại cho shipper về đơn #1024").isVisible());
+  check("no-deadline open ad-hoc is not on the calendar", (await page.getByText("Tìm nhà cung cấp hộp carton mới").count()) === 0);
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/e2e-calendar.png`, fullPage: true });
+  await page.getByRole("link", { name: "Tháng sau" }).click();
+  await page.waitForURL(/month=\d{4}-\d{2}/);
+  await page.getByRole("link", { name: "Tháng này" }).waitFor();
+  check("month navigation works", (await page.locator("button[aria-current=date]").count()) === 0);
+
   for (const adminPath of ["/members", "/overview", "/settings", "/fixed-tasks"]) {
     await page.goto(`${BASE}${adminPath}`);
     check(`employee blocked from ${adminPath}`, path(page) === "/today", page.url());
@@ -182,6 +218,22 @@ try {
   await page.getByRole("button", { name: "Lưu thay đổi" }).click();
   await page.getByText("Đã lưu hồ sơ").waitFor();
   check("employee can save own profile", true);
+
+  await page.getByLabel("Nhắc trước", { exact: true }).selectOption("60");
+  await page.getByRole("switch", { name: "Báo việc quá hạn" }).click();
+  await page.getByRole("button", { name: "Lưu thông báo" }).click();
+  await page.getByText("Đã lưu cài đặt thông báo").waitFor();
+  await page.reload();
+  check(
+    "notification settings persist",
+    (await page.getByLabel("Nhắc trước", { exact: true }).inputValue()) === "60" &&
+      (await page.getByRole("switch", { name: "Báo việc quá hạn" }).getAttribute("aria-checked")) === "false",
+  );
+  // Restore the defaults so re-runs and the RLS checks start from the seed state.
+  await page.getByLabel("Nhắc trước", { exact: true }).selectOption("30");
+  await page.getByRole("switch", { name: "Báo việc quá hạn" }).click();
+  await page.getByRole("button", { name: "Lưu thông báo" }).click();
+  await page.getByText("Đã lưu cài đặt thông báo").waitFor();
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/e2e-employee-profile.png`, fullPage: true });
 
   await logout(page);
@@ -236,7 +288,22 @@ try {
   await page.getByText("E2E việc cố định").click(); // tapping the title opens the editor
   await page.getByRole("dialog").waitFor();
   check("template with history offers no hard delete", (await page.getByRole("dialog").getByRole("button", { name: "Xoá" }).count()) === 0);
-  await page.keyboard.press("Escape");
+  // Effective range: ending today keeps today's task and shows the end date on the card.
+  await page.getByRole("dialog").getByLabel("Đến ngày (tuỳ chọn)").fill(TODAY);
+  await page.getByRole("dialog").getByRole("button", { name: "Lưu thay đổi" }).click();
+  const [, endMonth, endDay] = TODAY.split("-").map(Number);
+  await page.getByText(`Đến ${endDay}/${endMonth}`).waitFor();
+  check("admin can set a template's effective end date", true);
+
+  // ---------- admin: system settings ----------
+  await page.goto(`${BASE}/settings`);
+  await page.getByLabel("Tên team").fill("Team E2E");
+  await page.getByRole("button", { name: "Lưu", exact: true }).click();
+  await page.getByText("Đã lưu tên team").waitFor();
+  check("team name from system settings shows as the brand", await page.getByRole("link", { name: "Team E2E" }).first().isVisible());
+  await page.getByLabel("Tên team").fill("Team Todo");
+  await page.getByRole("button", { name: "Lưu", exact: true }).click();
+  await page.getByRole("link", { name: "Team Todo" }).first().waitFor();
 
   await logout(page);
   await login(page, "binh@team.local");

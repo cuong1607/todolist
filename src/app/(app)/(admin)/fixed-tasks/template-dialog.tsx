@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { WEEKDAYS, trimSeconds } from "@/lib/time";
+import { WEEKDAYS, todayLocal, trimSeconds } from "@/lib/time";
 import { cn } from "@/lib/utils";
 import { deleteTemplate, saveTemplate, type TemplateFormState } from "./actions";
 import type { Template } from "./template-list";
@@ -71,6 +71,7 @@ type FormProps = {
 function TemplateForm({ action, pending, error, assigneeId, template, onDeleted }: FormProps) {
   const [weekdays, setWeekdays] = useState<number[]>(template?.days_of_week ?? DEFAULT_WEEKDAYS);
   const [allowNote, setAllowNote] = useState(template?.allow_employee_note ?? false);
+  const [from, setFrom] = useState(template?.effective_from ?? todayLocal());
   const [deleting, startDelete] = useTransition();
 
   function toggleDay(day: number) {
@@ -175,6 +176,40 @@ function TemplateForm({ action, pending, error, assigneeId, template, onDeleted 
           className="h-11 w-36 text-base"
         />
       </div>
+
+      <fieldset className="space-y-2">
+        <legend className="text-sm font-medium">Thời gian hiệu lực</legend>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <Label htmlFor="t-from" className="text-caption text-muted-foreground">
+              Từ ngày
+            </Label>
+            <Input
+              id="t-from"
+              name="effective_from"
+              type="date"
+              required
+              value={from}
+              onChange={(e) => setFrom(e.target.value)}
+              className="h-11 text-base"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="t-to" className="text-caption text-muted-foreground">
+              Đến ngày (tuỳ chọn)
+            </Label>
+            <Input
+              id="t-to"
+              name="effective_to"
+              type="date"
+              min={from}
+              defaultValue={template?.effective_to ?? ""}
+              className="h-11 text-base"
+            />
+          </div>
+        </div>
+        <p className="text-micro text-muted-foreground">Để trống “Đến ngày” nếu việc này làm lâu dài.</p>
+      </fieldset>
 
       <label className="flex cursor-pointer items-center justify-between gap-4 rounded-xl bg-muted px-4 py-3">
         <span>

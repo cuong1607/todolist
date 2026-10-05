@@ -4,27 +4,34 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { todayLocal } from "@/lib/time";
 
-const templateSchema = z.object({
-  id: z.uuid().optional(),
-  assignee_id: z.uuid(),
-  title: z.string().trim().min(1, "Vui lòng nhập tên công việc").max(200, "Tối đa 200 ký tự"),
-  default_note: z
-    .string()
-    .trim()
-    .max(2000, "Ghi chú tối đa 2000 ký tự")
-    .transform((v) => v || null),
-  allow_employee_note: z.boolean(),
-  due_time: z
-    .string()
-    .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Giờ không hợp lệ")
-    .or(z.literal(""))
-    .transform((v) => v || null),
-  days_of_week: z
-    .array(z.coerce.number().int().min(1).max(7))
-    .min(1, "Chọn ít nhất một ngày trong tuần")
-    .transform((days) => [...new Set(days)].sort()),
-});
+const templateSchema = z
+  .object({
+    id: z.uuid().optional(),
+    assignee_id: z.uuid(),
+    title: z.string().trim().min(1, "Vui lòng nhập tên công việc").max(200, "Tối đa 200 ký tự"),
+    default_note: z
+      .string()
+      .trim()
+      .max(2000, "Ghi chú tối đa 2000 ký tự")
+      .transform((v) => v || null),
+    allow_employee_note: z.boolean(),
+    due_time: z
+      .string()
+      .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Giờ không hợp lệ")
+      .or(z.literal(""))
+      .transform((v) => v || null),
+    days_of_week: z
+      .array(z.coerce.number().int().min(1).max(7))
+      .min(1, "Chọn ít nhất một ngày trong tuần")
+      .transform((days) => [...new Set(days)].sort()),
+    effective_from: z.iso.date("Ngày bắt đầu không hợp lệ"),
+    effective_to: z
+      .union([z.literal(""), z.iso.date("Ngày kết thúc không hợp lệ")])
+      .transform((v) => v || null),
+  })
+  .refine((v) => !v.effective_to || v.effective_to >= v.effective_from, "Ngày kết thúc phải từ ngày bắt đầu trở đi");
 
 export type TemplateFormState = { ok?: boolean; error?: string; nonce?: number };
 
@@ -39,6 +46,8 @@ export async function saveTemplate(_prev: TemplateFormState, formData: FormData)
     allow_employee_note: formData.get("allow_employee_note") === "on",
     due_time: formData.get("due_time") ?? "",
     days_of_week: formData.getAll("weekdays"),
+    effective_from: formData.get("effective_from") || todayLocal(),
+    effective_to: formData.get("effective_to") ?? "",
   });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message };
   const { id, ...values } = parsed.data;
@@ -47,10 +56,10 @@ export async function saveTemplate(_prev: TemplateFormState, formData: FormData)
 
   if (id) {
     // assignee is fixed once created — reassigning would break the history's meaning.
-    const { title, default_note, allow_employee_note, due_time, days_of_week } = values;
+    const { title, default_note, allow_employee_note, due_time, days_of_week, effective_from, effective_to } = values;
     const { error } = await supabase
       .from("fixed_task_templates")
-      .update({ title, default_note, allow_employee_note, due_time, days_of_week })
+      .update({ title, default_note, allow_employee_note, due_time, days_of_week, effective_from, effective_to })
       .eq("id", id);
     if (error) return { error: "Không lưu được. Thử lại sau." };
   } else {

@@ -60,8 +60,11 @@ Hai loại công việc chính:
 - [x] Design tokens trong `globals.css` + `src/lib/motion.ts`; trang xem trước `/design`
 - [x] Light/Dark/System theme (toggle ở header, selector ở Cài đặt)
 - [x] Responsive shell: sidebar + header (desktop), top bar + bottom nav + FAB (mobile)
-- [ ] Tạo Supabase project cloud, `supabase link`, `npm run db:push`
-- [ ] Deploy Vercel (đặt env `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`)
+- [x] Tạo Supabase project cloud (`todolist`, ref `xrfmtrknmtovruzrrkmh`)
+- [x] `supabase link` + migrations trên cloud (đủ 6 migration, `db push --dry-run` báo up to date); đã có tài khoản admin
+- [x] Tắt signup công khai trên cloud (`auth.enable_signup = false`). Lưu ý: không `supabase config push` cả file `config.toml` — nó sẽ đổi thêm xác nhận email, MFA, redirect URL trên cloud
+- [x] Vercel project `todolist` (https://todolist-indol-phi.vercel.app) với env `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY` (Production)
+- [ ] Deploy bản mới nhất lên production: `vercel deploy --prod`
 
 ## Phase 2. Supabase Auth + Role + Profile
 
@@ -74,7 +77,8 @@ Hai loại công việc chính:
 - [x] Layout theo role: ADMIN → Tổng quan/Công việc/Thành viên/Cài đặt; EMPLOYEE → Hôm nay/Công việc/Hồ sơ
 - [x] Màn hình: Đăng nhập, Hồ sơ, Thành viên (admin)
 - [x] `npm run test:rls` (17 check qua Data API), `npm run test:e2e` (17 check trên trình duyệt)
-- [ ] Policy cho report/settings: làm cùng bảng tương ứng ở phase sau (dùng `private.is_admin()`)
+- [x] Policy cho settings: `system_settings` (member đọc, admin ghi), `notification_settings` (của mình; admin đọc) — làm ở Phase 3
+- [ ] Policy cho report: chưa có bảng report (chưa có spec)
 
 ## Phase 3. Database Core Schema
 
@@ -89,7 +93,9 @@ Làm sau Phase 4–5 (spec đến sau) — migration `20261003040000_core_schema
 - [x] Unique `(fixed_template_id, task_date)` — không sinh trùng
 - [x] RLS bật trên mọi bảng public (có test)
 - [x] Test: `test:db` (75), `test:rls` (70), `test:e2e` (40)
-- [ ] UI cho `effective_from/to`, cài đặt thông báo, system settings: làm ở phase tương ứng
+- [x] UI `effective_from/to`: "Thời gian hiệu lực" trong dialog việc cố định; thẻ hiện "Từ … / Đến … / Hết hiệu lực …"
+- [x] UI cài đặt thông báo ở Tài khoản (tóm tắt sáng + giờ gửi, nhắc trước deadline, báo quá hạn) — mới lưu cấu hình, chưa có job gửi
+- [x] UI system settings ở Cài đặt: tên team (hiện ở logo cho mọi thành viên)
 
 ## Phase 4. Fixed Task Management
 
@@ -111,7 +117,8 @@ Làm sau Phase 4–5 (spec đến sau) — migration `20261003040000_core_schema
 - [x] Không deadline → không bao giờ quá hạn, nằm trong "Việc đang tồn"
 - [x] Hôm nay chia nhóm: Quá hạn · Hôm nay · Việc đang tồn · Sắp tới · Đã xong
 - [x] Test: `test:db` (33), `test:rls` (54), `test:e2e` (40)
-- [ ] Chưa có: xoá việc phát sinh (spec không cho), lịch sử ở trang Công việc
+- [x] Lịch sử ở trang Công việc: theo ngày (14 ngày/trang), việc cố định đã xong/bỏ lỡ + việc phát sinh đã xong; chạm để xem chi tiết và nhật ký thay đổi (`task_history`)
+- Không làm: xoá việc phát sinh (spec không cho)
 
 ## Phase 6. Employee Today Experience
 
@@ -122,4 +129,5 @@ Làm sau Phase 4–5 (spec đến sau) — migration `20261003040000_core_schema
 - [x] Realtime: đồng bộ thay đổi từ thiết bị/tab khác; tự làm mới khi quay lại tab và khi qua nửa đêm
 - [x] Mobile: bottom nav Hôm nay · Lịch · Công việc · Tài khoản; FAB "+ Thêm việc"; dialog thành bottom sheet; checkbox vùng chạm 48px
 - [x] Animation 150–250ms
-- [ ] Trang Lịch: mới giữ chỗ trong menu (chưa có spec)
+- [x] Trang Lịch (bản tối giản, chưa có spec riêng): lưới tháng có chấm trạng thái, chọn ngày để xem việc; chỉ xem — tick vẫn ở Hôm nay. Ngày tương lai chỉ có việc phát sinh có deadline (việc cố định sinh theo ngày)
+- [x] Test: `test:e2e` (51)

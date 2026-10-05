@@ -9,6 +9,8 @@ import { UserAvatar } from "@/components/shell/user-avatar";
 import { RoleBadge } from "@/components/role-badge";
 import { requireUser } from "@/lib/auth";
 import { logout } from "@/app/login/actions";
+import { createClient } from "@/lib/supabase/server";
+import { NotificationForm } from "./notification-form";
 import { ProfileForm } from "./profile-form";
 
 export const metadata: Metadata = { title: "Tài khoản" };
@@ -16,6 +18,13 @@ export const metadata: Metadata = { title: "Tài khoản" };
 export default async function ProfilePage() {
   const me = await requireUser();
   const name = me.full_name || me.email;
+
+  const supabase = await createClient();
+  const { data: settings } = await supabase
+    .from("notification_settings")
+    .select("daily_summary_enabled, daily_summary_time, deadline_reminder_enabled, remind_before_minutes, overdue_alert_enabled")
+    .eq("user_id", me.id)
+    .maybeSingle();
 
   return (
     <>
@@ -42,6 +51,18 @@ export default async function ProfilePage() {
               <ProfileForm fullName={me.full_name} notificationEnabled={me.notification_enabled} />
             </CardContent>
           </Card>
+
+          {settings && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Thông báo</CardTitle>
+                <CardDescription>Chọn loại nhắc việc bạn muốn nhận. Tin nhắn sẽ gửi qua Zalo khi kết nối xong.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <NotificationForm settings={settings} masterEnabled={me.notification_enabled} />
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         <div className="space-y-4">

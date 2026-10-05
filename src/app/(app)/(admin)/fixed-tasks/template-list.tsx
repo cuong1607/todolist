@@ -2,13 +2,13 @@
 
 import { useState, useTransition } from "react";
 import { Reorder, useDragControls } from "motion/react";
-import { Clock, GripVertical, MessageSquareText, Pencil, Plus, Repeat } from "lucide-react";
+import { CalendarRange, Clock, GripVertical, MessageSquareText, Pencil, Plus, Repeat } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { EmptyState } from "@/components/empty-state";
 import { Fab } from "@/components/shell/fab";
-import { describeWeekdays, trimSeconds } from "@/lib/time";
+import { describeWeekdays, formatDateShort, todayLocal, trimSeconds } from "@/lib/time";
 import { cn } from "@/lib/utils";
 import { reorderTemplates, setTemplateActive } from "./actions";
 import { TemplateDialog } from "./template-dialog";
@@ -20,6 +20,8 @@ export type Template = {
   allow_employee_note: boolean;
   due_time: string | null;
   days_of_week: number[];
+  effective_from: string;
+  effective_to: string | null;
   sort_order: number;
   active: boolean;
   /** Has generated at least one task → can be disabled but not deleted. */
@@ -123,6 +125,16 @@ export function TemplateList({ assigneeId, assigneeName, templates }: Props) {
   );
 }
 
+/** Only worth a line when the range actually limits generation: not started yet, has an end, or already ended. */
+function describeRange(t: Template): { label: string; ended?: boolean } | null {
+  const today = todayLocal();
+  if (t.effective_to && t.effective_to < today) return { label: `Hết hiệu lực ${formatDateShort(t.effective_to)}`, ended: true };
+  if (t.effective_from > today) {
+    return { label: t.effective_to ? `${formatDateShort(t.effective_from)} – ${formatDateShort(t.effective_to)}` : `Từ ${formatDateShort(t.effective_from)}` };
+  }
+  return t.effective_to ? { label: `Đến ${formatDateShort(t.effective_to)}` } : null;
+}
+
 type ItemProps = {
   template: Template;
   onDragEnd: () => void;
@@ -132,6 +144,7 @@ type ItemProps = {
 
 function TemplateItem({ template: t, onDragEnd, onEdit, onToggle }: ItemProps) {
   const controls = useDragControls();
+  const range = describeRange(t);
 
   return (
     <Reorder.Item
@@ -175,6 +188,12 @@ function TemplateItem({ template: t, onDragEnd, onEdit, onToggle }: ItemProps) {
               <span className="flex items-center gap-1">
                 <MessageSquareText className="size-3.5" />
                 Cho ghi chú
+              </span>
+            )}
+            {range && (
+              <span className={cn("flex items-center gap-1", range.ended && "font-medium text-danger")}>
+                <CalendarRange className="size-3.5" />
+                {range.label}
               </span>
             )}
           </p>
