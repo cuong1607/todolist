@@ -329,5 +329,32 @@ async function signIn(email) {
   check("admin can change system settings (updated_by stamped)", settingsAdmin?.[0]?.updated_by === ADMIN, settingsAdminErr);
 }
 
+// ---------- Phase 7: dashboard RPCs ----------
+{
+  const anon = newClient();
+  const an = await signIn("an@team.local");
+  const admin = await signIn("admin@team.local");
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(new Date());
+  const args = { p_from: today, p_to: today };
+
+  const { data: anonRows, error: anonErr } = await anon.rpc("team_overview", args);
+  check("anon cannot call team_overview", !!anonErr && !anonRows, anonRows);
+
+  const { data: own } = await an.rpc("team_overview", args);
+  check("employee calling team_overview sees only own numbers", own?.length === 1 && own[0].assignee_id === AN, own);
+
+  const { data: team } = await admin.rpc("team_overview", args);
+  check(
+    "admin gets the whole team (An: 3 fixed today)",
+    team?.length >= 2 && team.find((r) => r.assignee_id === AN)?.fixed_total === 3,
+    team,
+  );
+
+  const { data: peek } = await an.rpc("tasks_in_range", { p_assignee_id: BINH, ...args });
+  check("employee cannot list another member's tasks via tasks_in_range", (peek ?? []).length === 0, peek);
+  const { data: binhTasks } = await admin.rpc("tasks_in_range", { p_assignee_id: BINH, ...args });
+  check("admin lists a member's tasks via tasks_in_range", (binhTasks ?? []).length >= 1 && binhTasks.every((t) => t.assignee_id === BINH), binhTasks?.length);
+}
+
 console.log(failed ? `\n${failed} check(s) FAILED` : "\nAll RLS checks passed");
 process.exit(failed ? 1 : 0);

@@ -10,8 +10,10 @@ export type TimelineEntry = {
   id: number;
   action: Enums<"task_action">;
   at: string;
-  /** Who did it, relative to the viewer. Employees can't read other profiles, so no names. */
+  /** Who did it, relative to the viewer. */
   actor: "me" | "system" | "other";
+  /** Name of an "other" actor — null when RLS hides their profile (employees can't read other members). */
+  actorName: string | null;
   /** What changed, already worded for the user. */
   detail: string | null;
 };
@@ -27,7 +29,7 @@ export async function getTaskTimeline(taskId: string): Promise<TimelineResult> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("task_history")
-    .select("id, action, actor_id, old_data, new_data, created_at")
+    .select("id, action, actor_id, old_data, new_data, created_at, actor:profiles(full_name)")
     .eq("task_id", id.data)
     .order("created_at")
     .order("id")
@@ -41,6 +43,7 @@ export async function getTaskTimeline(taskId: string): Promise<TimelineResult> {
       action: h.action,
       at: h.created_at,
       actor: h.actor_id === null ? "system" : h.actor_id === me.id ? "me" : "other",
+      actorName: h.actor?.full_name || null,
       detail: describeChange(h.action, h.old_data, h.new_data),
     })),
   };

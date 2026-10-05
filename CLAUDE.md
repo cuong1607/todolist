@@ -57,6 +57,13 @@ Schema (Phase 3): `fixed_task_templates`, `tasks`, `task_history`, `notification
 - Change log: `getTaskTimeline()` reads `task_history`; actors are shown as Bạn / Hệ thống / Quản lý (employees can't read other profiles).
 - Team name: `getTeamName()` in `@/lib/settings` (`system_settings.team_name`), passed to the shell via `ShellUser.teamName`. Notification preferences are stored only — no sender job yet.
 
+## Admin dashboard (Phase 7)
+- `src/app/(app)/(admin)/overview/`: a Server Component driven by the URL — `?range=today|7d|week|month|custom` (+ `from`/`to`), `?member=<id>` opens that member's sheet. Parse with `resolveRange()`, build links with `overviewHref()`.
+- "Which tasks count for a date range" is defined once in SQL: `private.task_in_range(tasks, from, to)`. `public.team_overview(from, to)` (per-member counts) and `public.tasks_in_range(assignee, from, to)` (the rows behind a card) both use it — never re-implement the rule in TS. FIXED: `task_date` in range. ADHOC: due in range, or completed in range, or open + already late when the range covers today. Open ad-hoc without a deadline never counts.
+- Both RPCs are `security invoker`: RLS applies (employees calling them only get their own rows).
+- Live updates: `OverviewRealtime` subscribes to `tasks` and calls a debounced `router.refresh()` (plus a 60s tick so overdue stays current). No client-side copy of the numbers.
+- Tailwind merge gotcha: `cn("text-display", "text-success")` drops `text-display` (custom font-size utilities are treated as colours). Put the colour on an inner element.
+
 ## Database
 - Every schema change goes through a migration: `npm run db:new <name>` → edit SQL in `supabase/migrations/` → `npm run db:reset` → `npm run db:types`.
 - Never change the database by hand (Studio/SQL editor) without a matching migration.

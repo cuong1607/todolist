@@ -44,6 +44,22 @@ export function isoWeekday(date: string) {
   return ((new Date(`${date}T12:00:00Z`).getUTCDay() + 6) % 7) + 1;
 }
 
+/** Monday of the week containing a YYYY-MM-DD date. */
+export function startOfWeek(date: string) {
+  return addDays(date, 1 - isoWeekday(date));
+}
+
+/** Last day of the month containing a YYYY-MM-DD date. */
+export function endOfMonth(date: string) {
+  const [y, m] = date.split("-").map(Number) as [number, number];
+  return new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
+}
+
+/** Whole days from `from` to `to` (both YYYY-MM-DD); negative when `to` is earlier. */
+export function daysBetween(from: string, to: string) {
+  return Math.round((Date.parse(`${to}T12:00:00Z`) - Date.parse(`${from}T12:00:00Z`)) / 86_400_000);
+}
+
 /** Add days to a YYYY-MM-DD date. */
 export function addDays(date: string, days: number) {
   const d = new Date(`${date}T12:00:00Z`);

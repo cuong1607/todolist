@@ -185,6 +185,37 @@ isOneToOne: false
                            },
 "reorder_fixed_task_templates":
 { Args: { "p_assignee_id": string,"p_ids": (string)[] }; Returns: undefined
+                           },
+"tasks_in_range":
+{ Args: { "p_assignee_id": string,"p_from": string,"p_to": string }; Returns: {
+              "allow_employee_note": boolean,
+"assignee_id": string,
+"completed": boolean,
+"completed_at": string | null,
+"completed_by": string | null,
+"created_at": string,
+"created_by": string | null,
+"deadline_at": string | null,
+"employee_note": string | null,
+"fixed_template_id": string | null,
+"id": string,
+"note": string | null,
+"sort_order": number,
+"task_date": string | null,
+"title": string,
+"type": Database["public"]['Enums']["task_type"],
+"updated_at": string
+            }[]
+                          SetofOptions: {
+        from: "*"
+        to: "tasks"
+        isOneToOne: false
+        isSetofReturn: true
+      } },
+"team_overview":
+{ Args: { "p_from": string,"p_to": string }; Returns: {
+              "adhoc_done": number,"adhoc_total": number,"assignee_id": string,"fixed_done": number,"fixed_total": number,"overdue": number
+            }[]
                            }
           }
           Enums: {

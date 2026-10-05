@@ -131,3 +131,13 @@ Làm sau Phase 4–5 (spec đến sau) — migration `20261003040000_core_schema
 - [x] Animation 150–250ms
 - [x] Trang Lịch (bản tối giản, chưa có spec riêng): lưới tháng có chấm trạng thái, chọn ngày để xem việc; chỉ xem — tick vẫn ở Hôm nay. Ngày tương lai chỉ có việc phát sinh có deadline (việc cố định sinh theo ngày)
 - [x] Test: `test:e2e` (51)
+
+## Phase 7. Admin Dashboard
+
+- [x] `/overview`: thẻ tổng (Tổng việc · Đã hoàn thành · Chưa hoàn thành · Quá hạn) + thẻ từng nhân viên (avatar, tên, Cố định x/y, Phát sinh x/y, Quá hạn, thanh tiến độ, nhãn "Xong hết / Còn n việc / n quá hạn")
+- [x] Bấm nhân viên → sheet (bottom sheet trên mobile, side sheet từ `sm`) liệt kê việc theo ngày; chạm việc để xem chi tiết, ghi chú của nhân viên và nhật ký thay đổi
+- [x] Bộ lọc: Hôm nay · 7 ngày · Tuần này · Tháng này · Tuỳ chọn (tối đa 31 ngày); lưu trên URL
+- [x] Realtime: số liệu tự cập nhật khi nhân viên tick (không reload); tự làm mới mỗi phút để "quá hạn" luôn đúng
+- [x] Một định nghĩa "việc thuộc khoảng thời gian" trong SQL (`private.task_in_range`) cho cả số tổng (`team_overview`) và danh sách (`tasks_in_range`). Việc phát sinh không deadline chưa xong ("việc đang tồn") không tính — giống thanh tiến độ ở Hôm nay
+- [x] Test: `test:db` (83), `test:rls` (+5), `test:e2e` (60)
+- [ ] Đẩy migration `20261005004136_team_overview` lên cloud (`npm run db:push`) rồi deploy

@@ -245,6 +245,69 @@ try {
   await page.waitForURL("**/overview");
   check("admin lands on /overview", path(page) === "/overview", page.url());
 
+  // ---------- admin dashboard ----------
+  // An today: 3 fixed (none done) + ad-hoc: 1 carried-over overdue, 1 due today, 1 finished today (E2E phát sinh).
+  const anCard = page.getByRole("link", { name: /^Nguyễn Văn An:/ });
+  await anCard.waitFor();
+  const anText = await anCard.textContent();
+  check("dashboard card shows fixed and ad-hoc completion per member", anText?.includes("Cố định0/3") && anText.includes("Phát sinh1/3"), anText);
+  check("…and flags who is overdue", /quá hạn/.test((await anCard.getAttribute("aria-label")) ?? ""), await anCard.getAttribute("aria-label"));
+  const summary = (await page.locator("dl").first().textContent()) ?? "";
+  check("summary cards: total · done · not done · overdue", /Tổng việc\d+Đã hoàn thành\d+Chưa hoàn thành\d+Quá hạn\d+/.test(summary), summary);
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/e2e-admin-overview.png`, fullPage: true });
+
+  // Realtime: an employee ticks a task on another device → the admin's numbers move without a reload.
+  const binhCard = page.getByRole("link", { name: /^Trần Thị Bình:/ });
+  const fixedBefore = (await binhCard.textContent())?.match(/Cố định(\d+)\/(\d+)/);
+  const employeeContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const employeePage = await employeeContext.newPage();
+  await login(employeePage, "binh@team.local");
+  await employeePage.waitForURL("**/today");
+  await page.waitForTimeout(1500); // let the dashboard's Realtime channel finish subscribing
+  await employeePage.getByRole("checkbox", { name: "Hoàn thành “Trả lời tin nhắn khách hàng”" }).click();
+  const expected = `Cố định${Number(fixedBefore?.[1]) + 1}/${fixedBefore?.[2]}`;
+  const live = await page
+    .waitForFunction(
+      (text) => [...document.querySelectorAll("a")].some((a) => a.getAttribute("aria-label")?.startsWith("Trần Thị Bình:") && a.textContent.includes(text)),
+      expected,
+      { timeout: 8000 },
+    )
+    .then(() => true, () => false);
+  check("dashboard updates live when an employee completes a task", live, `${fixedBefore?.[0]} → expected ${expected}`);
+  await employeePage.getByRole("checkbox", { name: "Mở lại “Trả lời tin nhắn khách hàng”" }).click();
+  await employeePage.getByRole("checkbox", { name: "Hoàn thành “Trả lời tin nhắn khách hàng”" }).waitFor();
+  await employeeContext.close();
+
+  // Click a member → their tasks by day.
+  await anCard.click();
+  await page.waitForURL(/member=/);
+  const sheet = page.getByRole("dialog");
+  await sheet.getByText("E2E phát sinh").waitFor();
+  check(
+    "member sheet lists the member's tasks by day (carried-over overdue under 'Hôm qua')",
+    (await sheet.getByRole("region", { name: /^Hôm qua/ }).getByText("Gửi báo giá cho khách Hưng Thịnh").isVisible()) &&
+      (await sheet.getByRole("region", { name: /^Hôm nay/ }).getByText("Kiểm tra đơn hàng mới").isVisible()),
+  );
+  check("backlog (no deadline) is not counted against the member", (await sheet.getByText("Tìm nhà cung cấp hộp carton mới").count()) === 0);
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/e2e-admin-member-sheet.png` });
+  await page.keyboard.press("Escape");
+  await page.waitForURL((u) => !u.searchParams.has("member"));
+  check("closing the sheet returns to the dashboard", (await page.getByRole("dialog").count()) === 0);
+
+  // Filters
+  const filters = page.getByRole("navigation", { name: "Khoảng thời gian" });
+  await filters.getByRole("link", { name: "7 ngày" }).click();
+  await page.waitForURL(/range=7d/);
+  await filters.getByRole("link", { name: "Tháng này" }).click();
+  await page.waitForURL(/range=month/);
+  check("range filters switch the dashboard", (await filters.getByRole("link", { name: "Tháng này" }).getAttribute("aria-current")) === "page");
+  await filters.getByRole("link", { name: "Tuỳ chọn" }).click();
+  await page.getByLabel("Từ ngày").fill(TODAY);
+  await page.getByLabel("Đến ngày").fill(TODAY);
+  await page.getByRole("button", { name: "Xem" }).click();
+  await page.waitForURL(new RegExp(`from=${TODAY}&to=${TODAY}`));
+  check("custom range matches 'Hôm nay' for the same day", (await page.getByRole("link", { name: /^Nguyễn Văn An:/ }).textContent())?.includes("Phát sinh1/3"));
+
   await page.goto(`${BASE}/members`);
   const rows = page.getByRole("listitem");
   await rows.first().waitFor();

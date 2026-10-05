@@ -15,20 +15,22 @@ type Props = {
   open: boolean;
   task: TodayTask | null;
   onOpenChange: (open: boolean) => void;
+  /** Heading for the employee's note. Admins viewing a member pass their own wording. */
+  employeeNoteLabel?: string;
 };
 
 /** Read-only detail sheet: what the task was, and everything that happened to it. */
-export function TaskDetailDialog({ open, task, onOpenChange }: Props) {
+export function TaskDetailDialog({ open, task, onOpenChange, employeeNoteLabel = "Ghi chú của bạn" }: Props) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-md">
-        {task && <Detail key={task.id} task={task} />}
+        {task && <Detail key={task.id} task={task} employeeNoteLabel={employeeNoteLabel} />}
       </DialogContent>
     </Dialog>
   );
 }
 
-function Detail({ task }: { task: TodayTask }) {
+function Detail({ task, employeeNoteLabel }: { task: TodayTask; employeeNoteLabel: string }) {
   const now = new Date();
   const status = deriveStatus(task, now);
 
@@ -67,7 +69,7 @@ function Detail({ task }: { task: TodayTask }) {
       </DialogHeader>
 
       {task.note && <NoteBlock label={task.type === "FIXED" ? "Hướng dẫn" : "Ghi chú"} text={task.note} />}
-      {task.employee_note && <NoteBlock label="Ghi chú của bạn" text={task.employee_note} />}
+      {task.employee_note && <NoteBlock label={employeeNoteLabel} text={task.employee_note} />}
 
       <Timeline taskId={task.id} />
     </>
@@ -83,7 +85,12 @@ function NoteBlock({ label, text }: { label: string; text: string }) {
   );
 }
 
-const WHO: Record<TimelineEntry["actor"], string> = { me: "Bạn", system: "Hệ thống", other: "Quản lý" };
+/** Other people are named when the viewer may read their profile (admins); employees just see "Quản lý". */
+function who(entry: TimelineEntry) {
+  if (entry.actor === "me") return "Bạn";
+  if (entry.actor === "system") return "Hệ thống";
+  return entry.actorName ?? "Quản lý";
+}
 const VERB: Record<TimelineEntry["action"], string> = {
   CREATED: "tạo việc",
   UPDATED: "cập nhật",
@@ -135,7 +142,7 @@ function Timeline({ taskId }: { taskId: string }) {
               />
               <div className="min-w-0">
                 <p className="font-medium">
-                  {WHO[e.actor]} {VERB[e.action]}
+                  {who(e)} {VERB[e.action]}
                 </p>
                 {e.detail && <p className="text-caption text-muted-foreground">{e.detail}</p>}
                 <p className="text-micro text-muted-foreground">
