@@ -7,7 +7,7 @@ import type { Database } from "@/types/database";
  * Routes reachable without a session. The Zalo webhook and the cron worker are called by
  * machines; they authenticate themselves (signature / bearer secret) inside the route.
  */
-const PUBLIC_PATHS = ["/login", "/logout", "/api/health", "/api/zalo/webhook", "/api/cron"];
+const PUBLIC_PATHS = ["/login", "/logout", "/robots.txt", "/api/health", "/api/zalo/webhook", "/api/cron"];
 
 function isPublic(pathname: string) {
   // The home page itself is public: signed-out visitors (and Zalo's domain-verification crawler)
