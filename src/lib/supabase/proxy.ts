@@ -3,11 +3,16 @@ import { createServerClient } from "@supabase/ssr";
 import { getPublicEnv, isSupabaseConfigured } from "@/lib/env";
 import type { Database } from "@/types/database";
 
-/** Routes reachable without a session. */
-const PUBLIC_PATHS = ["/login", "/logout", "/api/health"];
+/**
+ * Routes reachable without a session. The Zalo webhook and the cron worker are called by
+ * machines; they authenticate themselves (signature / bearer secret) inside the route.
+ */
+const PUBLIC_PATHS = ["/login", "/logout", "/api/health", "/api/zalo/webhook", "/api/cron"];
 
 function isPublic(pathname: string) {
-  return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+  // The home page itself is public: signed-out visitors (and Zalo's domain-verification crawler)
+  // get the sign-in screen there with a 200, not a redirect.
+  return pathname === "/" || PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }
 
 /**

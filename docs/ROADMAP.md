@@ -168,3 +168,28 @@ Luồng: trạng thái công việc → **scheduler** (`private.schedule_notific
 - [ ] Chưa làm (tuỳ chọn trong spec): NEW_TASK, DEADLINE_CHANGED — hiện nhân viên tự tạo và tự dời việc của mình nên chưa có người cần báo; đã có sẵn trong enum
 - [ ] Chưa có: đánh dấu đã đọc / số thông báo chưa đọc trên chuông
 - [ ] Đẩy migration `20261005011149_notification_engine` lên cloud (`npm run db:push`) rồi deploy
+
+## Phase 10. Zalo OA Integration
+
+Hướng dẫn thiết lập với OA thật: [docs/ZALO.md](ZALO.md).
+
+- [x] Bảo mật: App ID / App Secret / OA Secret Key chỉ ở biến môi trường server; token của OA (xoay vòng) lưu trong Supabase Vault, chỉ đọc/ghi qua RPC của service role. Không có gì gửi xuống trình duyệt (có test)
+- [x] Provider: `sendNotification(user, payload)` — gọi API Zalo, đọc phản hồi, ghi log, ném `ZaloError` chuẩn hoá (`kind`, `retryable`, mã lỗi Zalo). Tự làm mới access token khi hết hạn hoặc bị từ chối
+- [x] Kết nối OA bằng OAuth (PKCE + state) ngay trong ứng dụng
+- [x] Liên kết nhân viên: nhân viên lấy mã ở Tài khoản → gửi mã cho OA → webhook (kiểm tra chữ ký) ghi `zalo_user_id` / `zalo_connected`. Tự gỡ được; admin gỡ hộ được
+- [x] Engine Phase 9 không đổi: thành viên đã liên kết có thêm dòng ZALO; worker `/api/cron/zalo-dispatch` được pg_cron gọi qua pg_net khi có tin đến hạn
+- [x] Cài đặt → Thông báo → Zalo OA: trạng thái kết nối, bật/tắt, gửi tin thử, danh sách liên kết, lịch sử gửi
+- [x] Test: `test:db` (133), `test:zalo` (29, với Zalo giả `scripts/mock-zalo.mjs`), `test:e2e` (76)
+- [ ] **Chưa thử với Zalo OA thật** — cần App ID/Secret của bạn. Hai điểm cần xác nhận khi thử: công thức chữ ký webhook, và giới hạn "tin tư vấn" (Zalo chỉ cho gửi tới người có tương tác gần đây với OA)
+- [ ] Đẩy migration `20261005015523_zalo_oa` lên cloud, thêm biến môi trường trên Vercel, deploy
+
+## Phase 11. Morning Summary 08:00
+
+- [x] Một giờ gửi chung cho cả team, mặc định 08:00, admin đổi ở Cài đặt → Thông báo (`system_settings.morning_summary_time`). Bỏ giờ riêng của từng người (Phase 9); mỗi người vẫn tự bật/tắt
+- [x] Mỗi người đúng **một** tin mỗi ngày, không gửi từng việc. Nội dung: "Công việc hôm nay" + ba dòng `Cố định` · `Đến hạn hôm nay` · `Quá hạn` (chỉ tính việc chưa xong)
+- [x] Số liệu chỉ lấy từ việc của chính người nhận (`private.morning_summary_counts`); người không có việc nào thì không nhận tin
+- [x] Đổi giờ trong ngày không gửi lần hai (khoá `morning-summary:<user>:<ngày>`); trễ quá 2 giờ thì bỏ qua
+- [x] Gửi qua ứng dụng và qua Zalo (nếu đã liên kết) với cùng nội dung
+- [x] Test: `test:db` (148), `test:e2e` (80 — có kiểm tra thật: dời giờ về hiện tại, An và Bình mỗi người nhận một tin với số của riêng mình)
+- Khác spec: không dùng Edge Function. Năm bước của spec (lấy user → đếm việc theo từng user → dựng nội dung → ghi `notification_logs` → gửi Zalo) chạy trong scheduler SQL sẵn có (pg_cron mỗi phút) và worker Zalo của Phase 10, để chỉ có một engine và một nơi deploy
+- [ ] Đẩy migration `20261005021833_morning_summary` lên cloud rồi deploy

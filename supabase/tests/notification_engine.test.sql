@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set search_path = public, extensions;
 
-select plan(24);
+select plan(26);
 
 -- The per-minute cron job may already have queued rows for the seed users; start from a known state.
 delete from notification_logs;
@@ -35,7 +35,7 @@ select is(
 );
 select matches(
   (select payload ->> 'body' from notification_logs where type = 'MORNING_SUMMARY' and user_id = '00000000-0000-4000-8000-000000000002'),
-  '^Hôm nay bạn có 3 việc cố định, \d+ việc đến hạn, \d+ việc quá hạn\.$',
+  E'^Cố định: 3\nĐến hạn hôm nay: \\d+\nQuá hạn: \\d+$',
   'morning summary body counts fixed, due-today and overdue tasks'
 );
 select is(
@@ -85,8 +85,8 @@ select matches(
   'end-of-day summary for members with work today'
 );
 select is(
-  (select array_agg(user_id) from notification_logs where type = 'ADMIN_DAILY_SUMMARY'),
-  array['00000000-0000-4000-8000-000000000001'::uuid],
+  (select array_agg(user_id order by user_id) from notification_logs where type = 'ADMIN_DAILY_SUMMARY'),
+  array['00000000-0000-4000-8000-000000000001'::uuid, '00000000-0000-4000-8000-000000000004'::uuid],
   'admin daily summary goes to admins only'
 );
 update system_settings set value = '"20:00"' where key = 'admin_daily_summary_time';
@@ -104,7 +104,14 @@ select is(
 
 -- ---------- a second provider: one row each, delivered through claim / complete / fail ----------
 delete from notification_logs;
-update profiles set zalo_connected = true where id = '00000000-0000-4000-8000-000000000002';
+update profiles set zalo_connected = true, zalo_user_id = 'zalo-an' where id = '00000000-0000-4000-8000-000000000002';
+select is(
+  private.enqueue_notification('00000000-0000-4000-8000-000000000002', null, 'NEW_TASK', 'test:0', now(), '{"title":"t","body":"b"}'),
+  1,
+  'a linked member still gets only the in-app row while the Zalo channel is off'
+);
+delete from notification_logs;
+update system_settings set value = 'true' where key = 'zalo_enabled';
 select is(
   private.enqueue_notification('00000000-0000-4000-8000-000000000002', null, 'NEW_TASK', 'test:1', now() - interval '1 minute', '{"title":"t","body":"b"}'),
   2,
@@ -145,6 +152,15 @@ select results_eq(
 select enqueue_notification.* from private.enqueue_notification(
   '00000000-0000-4000-8000-000000000002', null, 'NEW_TASK', 'test:2', now() - interval '1 minute', '{"title":"t","body":"b"}') enqueue_notification;
 select complete_notification(id, 'zalo-msg-1') from claim_notifications('ZALO');
+
+-- A failure that can never succeed (e.g. the member blocked the OA) skips the retries.
+select enqueue_notification.* from private.enqueue_notification(
+  '00000000-0000-4000-8000-000000000002', null, 'NEW_TASK', 'test:3', now() - interval '1 minute', '{"title":"t","body":"b"}') enqueue_notification;
+select is(
+  (select fail_notification(id, 'blocked', true) from claim_notifications('ZALO'))::text,
+  'FAILED',
+  'a final failure is not retried'
+);
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"00000000-0000-4000-8000-000000000001","role":"authenticated"}';
 select throws_ok($$ select * from claim_notifications('IN_APP') $$, '42501', null, 'signed-in users (even admins) cannot call the delivery API');

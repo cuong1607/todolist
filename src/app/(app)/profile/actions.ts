@@ -30,9 +30,29 @@ export async function updateProfile(_prev: ProfileFormState, formData: FormData)
   return { ok: true };
 }
 
+export type ZaloLinkResult = { ok: true; code?: string } | { ok: false; error: string };
+
+/** A one-time code the member sends to the OA in Zalo; the webhook then links their account. */
+export async function createZaloLinkCode(): Promise<ZaloLinkResult> {
+  await requireUser();
+  const supabase = await createClient();
+  // The RPC takes the user from the session — there is nothing to pass.
+  const { data, error } = await supabase.rpc("zalo_create_link_code");
+  if (error || !data) return { ok: false, error: "Không tạo được mã. Thử lại sau." };
+  return { ok: true, code: data };
+}
+
+export async function unlinkZalo(): Promise<ZaloLinkResult> {
+  await requireUser();
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("zalo_unlink");
+  if (error) return { ok: false, error: "Không ngắt được kết nối. Thử lại sau." };
+  revalidatePath("/profile");
+  return { ok: true };
+}
+
 const notificationSchema = z.object({
   daily_summary_enabled: z.boolean(),
-  daily_summary_time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Giờ không hợp lệ"),
   deadline_reminder_enabled: z.boolean(),
   remind_before_minutes: z.coerce.number().int().min(5, "Nhắc trước ít nhất 5 phút").max(1440, "Nhắc trước tối đa 1 ngày"),
   overdue_alert_enabled: z.boolean(),
@@ -44,7 +64,6 @@ export async function updateNotificationSettings(_prev: ProfileFormState, formDa
 
   const parsed = notificationSchema.safeParse({
     daily_summary_enabled: formData.get("daily_summary_enabled") === "on",
-    daily_summary_time: formData.get("daily_summary_time"),
     deadline_reminder_enabled: formData.get("deadline_reminder_enabled") === "on",
     remind_before_minutes: formData.get("remind_before_minutes"),
     overdue_alert_enabled: formData.get("overdue_alert_enabled") === "on",

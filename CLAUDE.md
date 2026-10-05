@@ -75,9 +75,22 @@ Schema (Phase 3): `fixed_task_templates`, `tasks`, `task_history`, `notification
 - The scheduler only decides WHAT is due; it enqueues through `private.enqueue_notification()`, which writes one row per provider the member is reachable on (IN_APP always; ZALO when `profiles.zalo_connected`). Idempotent via `unique (provider, dedupe_key)` — every new notification type needs a deterministic key (`<type>:<user|task>:<date|deadline epoch>`).
 - Providers never touch the table directly: `claim_notifications(provider, limit)` → send → `complete_notification(id, external_id)` or `fail_notification(id, error)` (retry after 1 and 5 min, third failure = FAILED). Service role only. IN_APP is delivered inside the DB by `private.deliver_in_app()`.
 - Status: PENDING → PROCESSING → SENT | FAILED. Payload is `{ title, body, url? }` in Vietnamese, built in SQL; read it with `readPayload()` (`@/lib/notifications`), which only allows in-app URLs.
-- Rules live in the migration header + `supabase/tests/notification_engine.test.sql` (tests pin the clock via `p_now`). Summary times for the evening summaries are `system_settings` keys (`end_of_day_summary_time`, `admin_daily_summary_time`); defaults are duplicated in `getSummaryTimes()` — keep in sync.
+- Rules live in the migration headers + `supabase/tests/notification_engine.test.sql` / `morning_summary.test.sql` (tests pin the clock via `p_now`). All daily summary times are team-wide `system_settings` keys set by admins (`morning_summary_time` 08:00, `end_of_day_summary_time` 17:30, `admin_daily_summary_time` 18:00); defaults are duplicated in `getSummaryTimes()` — keep in sync. Members only switch types on/off.
+- Morning summary (Phase 11): `private.schedule_morning_summaries()` — ONE message per member per day with three counts from `private.morning_summary_counts(user, date)` (unfinished only: fixed today / ad-hoc due today / ad-hoc overdue). Never one notification per task. Multi-line bodies are rendered with `whitespace-pre-line`.
 - UI: inbox `/notifications` (own IN_APP rows, bell in the header), admin log `/settings/notifications`.
 - The cron tick also runs locally, so `notification_logs` fills up on its own after `db:reset`; tests must not assume it is empty.
+
+## Zalo OA (Phase 10)
+Setup guide for a real OA: [docs/ZALO.md](docs/ZALO.md).
+- Secrets: `ZALO_APP_ID`, `ZALO_APP_SECRET`, `ZALO_OA_SECRET_KEY`, `APP_URL`, `CRON_SECRET` are server env only — read them through `getZaloConfig()` (`@/lib/zalo/config`, returns null when unset: the app must keep working without Zalo). The rotating OA tokens live in Supabase Vault behind service-role RPCs (`zalo_get_tokens` / `zalo_save_tokens`); never put them in env, `system_settings`, or anything a browser can read. `system_settings` holds only `zalo_enabled`, `zalo_oa_id`, `zalo_oa_name`.
+- Provider: `sendNotification(user, payload)` in `@/lib/zalo/provider` is the only way to send. It throws `ZaloError` (`kind`, `retryable`, `zaloCode`); callers pass `p_final: !retryable` to `fail_notification`. Unknown Zalo error codes are treated as final.
+- `@/lib/supabase/service` (service role) is for server jobs without a user session — the worker, the webhook, the token store — and only for service-role RPCs plus the minimum they need. User-triggered work still goes through `@/lib/supabase/server`.
+- Routes: `/api/zalo/oauth/start|callback` (admin, PKCE + state cookie), `/api/zalo/webhook` (public; verified by `X-ZEvent-Signature` against the raw body), `/api/cron/zalo-dispatch` (public; `Authorization: Bearer CRON_SECRET`). The last two are in `PUBLIC_PATHS` in `@/lib/supabase/proxy` and must authenticate themselves.
+- Linking: `zalo_create_link_code()` (member) → member sends the code to the OA → webhook calls `zalo_link_by_code()`. Clients can never write `zalo_user_id` themselves. `zalo_unlink()` for self / admin.
+- Trigger: `private.notification_tick()` ends with `private.trigger_zalo_dispatch()`, which POSTs to the worker via pg_net only when ZALO rows are due. The URL + secret are registered in Vault by the OAuth callback.
+- Domain verification: `ZALO_SITE_VERIFICATION` renders `<meta name="zalo-platform-site-verification">` from the root layout. `/` is public and renders the sign-in screen with a 200 for signed-out visitors (`LoginScreen`) — do not turn it back into a redirect, or Zalo's crawler will not see the tag.
+- Not yet verified against a live OA: the webhook signature formula and the "tin tư vấn" delivery window. Endpoints were checked against a third-party SDK, not Zalo's own docs.
+- `npm run test:zalo` — full flow against `scripts/mock-zalo.mjs` (needs the app started with the env listed at the top of `scripts/test-zalo.mjs`).
 
 ## Database
 - Every schema change goes through a migration: `npm run db:new <name>` → edit SQL in `supabase/migrations/` → `npm run db:reset` → `npm run db:types`.
@@ -102,4 +115,4 @@ Schema (Phase 3): `fixed_task_templates`, `tasks`, `task_history`, `notification
 - `npm run test:rls` — RLS checks via the Data API (needs `db:reset` seed). Run after every migration touching policies.
 - `npm run test:db` — pgTAP tests in `supabase/tests/` (schema, generation, idempotency, history, ad-hoc rules)
 - `npm run test:e2e` — browser auth flow via installed Edge (app must be running; set `E2E_BASE_URL`)
-- Seed accounts (local only, password `Password123!`): `admin@team.local`, `an@team.local`, `binh@team.local`
+- Seed accounts (local only, password `Password123!`): `admin@team.local`, `an@team.local`, `binh@team.local`, plus `admin@admin.com` (ADMIN) and `cuong@nhanvien.com` — the same emails exist in production with different passwords. The repo is public: never put production passwords in `seed.sql`.

@@ -21,6 +21,7 @@ const ICONS: Record<Enums<"notification_type">, React.ReactNode> = {
   ADMIN_DAILY_SUMMARY: <Users />,
   NEW_TASK: <Bell />,
   DEADLINE_CHANGED: <AlarmClock />,
+  TEST: <Bell />,
 };
 
 /** The in-app inbox: what the IN_APP provider delivered to the signed-in member. */
@@ -74,7 +75,8 @@ export default async function NotificationsPage() {
                       </span>
                     )}
                   </span>
-                  <span className="mt-0.5 block text-caption text-muted-foreground">{body}</span>
+                  {/* pre-line: summaries put one number per line */}
+                  <span className="mt-0.5 block text-caption whitespace-pre-line text-muted-foreground">{body}</span>
                 </span>
                 {url && <ChevronRight aria-hidden className="size-5 shrink-0 self-center text-muted-foreground" />}
               </>

@@ -32,10 +32,20 @@ export default async function SettingsPage() {
         <Card className="md:col-span-2">
           <CardHeader>
             <CardTitle>Thông báo</CardTitle>
-            <CardDescription>Giờ gửi tổng kết cuối ngày. Giờ tóm tắt buổi sáng do từng người tự chọn ở Tài khoản.</CardDescription>
+            <CardDescription>Giờ gửi các bản tin hằng ngày cho cả team. Mỗi người tự bật/tắt từng loại ở Tài khoản.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <SummaryTimesForm endOfDay={summaryTimes.endOfDay} adminDaily={summaryTimes.adminDaily} />
+            <SummaryTimesForm morning={summaryTimes.morning} endOfDay={summaryTimes.endOfDay} adminDaily={summaryTimes.adminDaily} />
+            <Link
+              href="/settings/zalo"
+              className="flex items-center gap-3 rounded-xl bg-muted px-4 py-3 outline-none transition-colors duration-(--duration-normal) hover:bg-muted/70 focus-visible:ring-3 focus-visible:ring-ring/50"
+            >
+              <span className="flex-1">
+                <span className="block font-medium">Zalo OA</span>
+                <span className="block text-caption text-muted-foreground">Kết nối, bật/tắt, gửi tin thử</span>
+              </span>
+              <ChevronRight className="size-5 text-muted-foreground" />
+            </Link>
             <Link
               href="/settings/notifications"
               className="flex items-center gap-3 rounded-xl bg-muted px-4 py-3 outline-none transition-colors duration-(--duration-normal) hover:bg-muted/70 focus-visible:ring-3 focus-visible:ring-ring/50"

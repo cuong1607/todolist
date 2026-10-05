@@ -1,18 +1,19 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { LogOut, MessageCircle } from "lucide-react";
+import { LogOut } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ThemeSelector } from "@/components/theme-toggle";
 import { UserAvatar } from "@/components/shell/user-avatar";
 import { RoleBadge } from "@/components/role-badge";
 import { requireUser } from "@/lib/auth";
 import { logout } from "@/app/login/actions";
+import { getSummaryTimes, getZaloChannel } from "@/lib/settings";
 import { createClient } from "@/lib/supabase/server";
 import { NotificationForm } from "./notification-form";
 import { ProfileForm } from "./profile-form";
+import { ZaloLink } from "./zalo-link";
 
 export const metadata: Metadata = { title: "Tài khoản" };
 
@@ -23,9 +24,10 @@ export default async function ProfilePage() {
   const supabase = await createClient();
   const { data: settings } = await supabase
     .from("notification_settings")
-    .select("daily_summary_enabled, daily_summary_time, deadline_reminder_enabled, remind_before_minutes, overdue_alert_enabled, end_of_day_summary_enabled")
+    .select("daily_summary_enabled, deadline_reminder_enabled, remind_before_minutes, overdue_alert_enabled, end_of_day_summary_enabled")
     .eq("user_id", me.id)
     .maybeSingle();
+  const [zalo, summaryTimes] = await Promise.all([getZaloChannel(), getSummaryTimes()]);
 
   return (
     <>
@@ -66,7 +68,7 @@ export default async function ProfilePage() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <NotificationForm settings={settings} masterEnabled={me.notification_enabled} />
+                <NotificationForm settings={settings} masterEnabled={me.notification_enabled} morningTime={summaryTimes.morning} />
               </CardContent>
             </Card>
           )}
@@ -78,15 +80,8 @@ export default async function ProfilePage() {
               <CardTitle>Zalo</CardTitle>
               <CardDescription>Nhận nhắc việc qua Zalo.</CardDescription>
             </CardHeader>
-            <CardContent className="flex items-center gap-3">
-              <span className="flex size-10 items-center justify-center rounded-xl bg-muted text-muted-foreground">
-                <MessageCircle className="size-5" />
-              </span>
-              {me.zalo_connected ? (
-                <Badge className="bg-success-soft text-success-soft-foreground">Đã kết nối</Badge>
-              ) : (
-                <Badge className="bg-muted text-muted-foreground">Chưa kết nối · Sắp có</Badge>
-              )}
+            <CardContent>
+              <ZaloLink connected={me.zalo_connected} available={zalo.enabled && !!zalo.oaId} oaId={zalo.oaId} oaName={zalo.oaName} />
             </CardContent>
           </Card>
 

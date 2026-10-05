@@ -5,12 +5,16 @@
 --   admin@team.local   ADMIN
 --   an@team.local      EMPLOYEE
 --   binh@team.local    EMPLOYEE
+--   admin@admin.com    ADMIN     (same emails as the production accounts — but NOT their passwords:
+--   cuong@nhanvien.com EMPLOYEE   this repository is public)
 
 with seed_users (id, email, full_name) as (
   values
     ('00000000-0000-4000-8000-000000000001'::uuid, 'admin@team.local', 'Quản Trị'),
     ('00000000-0000-4000-8000-000000000002'::uuid, 'an@team.local', 'Nguyễn Văn An'),
-    ('00000000-0000-4000-8000-000000000003'::uuid, 'binh@team.local', 'Trần Thị Bình')
+    ('00000000-0000-4000-8000-000000000003'::uuid, 'binh@team.local', 'Trần Thị Bình'),
+    ('00000000-0000-4000-8000-000000000004'::uuid, 'admin@admin.com', 'Admin'),
+    ('00000000-0000-4000-8000-000000000005'::uuid, 'cuong@nhanvien.com', 'Cường')
 ),
 inserted as (
   insert into auth.users (
@@ -30,8 +34,9 @@ insert into auth.identities (id, user_id, provider_id, identity_data, provider, 
 select gen_random_uuid(), id, id::text, jsonb_build_object('sub', id::text, 'email', email), 'email', now(), now(), now()
 from inserted;
 
--- Profiles were created by the on_auth_user_created trigger as EMPLOYEE; promote the admin.
-update public.profiles set role = 'ADMIN' where id = '00000000-0000-4000-8000-000000000001';
+-- Profiles were created by the on_auth_user_created trigger as EMPLOYEE; promote the admins.
+update public.profiles set role = 'ADMIN'
+where id in ('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000004');
 
 -- Fixed task templates (every day so local testing works on any weekday)
 insert into public.fixed_task_templates (assignee_id, title, default_note, allow_employee_note, due_time, days_of_week, sort_order, created_by)

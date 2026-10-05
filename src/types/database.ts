@@ -57,13 +57,13 @@ isOneToOne: false
                   ]
                 },"notification_settings": {
                   Row: {
-                    "created_at": string,"daily_summary_enabled": boolean,"daily_summary_time": string,"deadline_reminder_enabled": boolean,"end_of_day_summary_enabled": boolean,"overdue_alert_enabled": boolean,"remind_before_minutes": number,"updated_at": string,"user_id": string
+                    "created_at": string,"daily_summary_enabled": boolean,"deadline_reminder_enabled": boolean,"end_of_day_summary_enabled": boolean,"overdue_alert_enabled": boolean,"remind_before_minutes": number,"updated_at": string,"user_id": string
                   }
                   Insert: {
-                    "created_at"?: string,"daily_summary_enabled"?: boolean,"daily_summary_time"?: string,"deadline_reminder_enabled"?: boolean,"end_of_day_summary_enabled"?: boolean,"overdue_alert_enabled"?: boolean,"remind_before_minutes"?: number,"updated_at"?: string,"user_id": string
+                    "created_at"?: string,"daily_summary_enabled"?: boolean,"deadline_reminder_enabled"?: boolean,"end_of_day_summary_enabled"?: boolean,"overdue_alert_enabled"?: boolean,"remind_before_minutes"?: number,"updated_at"?: string,"user_id": string
                   }
                   Update: {
-                    "created_at"?: string,"daily_summary_enabled"?: boolean,"daily_summary_time"?: string,"deadline_reminder_enabled"?: boolean,"end_of_day_summary_enabled"?: boolean,"overdue_alert_enabled"?: boolean,"remind_before_minutes"?: number,"updated_at"?: string,"user_id"?: string
+                    "created_at"?: string,"daily_summary_enabled"?: boolean,"deadline_reminder_enabled"?: boolean,"end_of_day_summary_enabled"?: boolean,"overdue_alert_enabled"?: boolean,"remind_before_minutes"?: number,"updated_at"?: string,"user_id"?: string
                   }
                   Relationships: [
                     {
@@ -212,7 +212,7 @@ isOneToOne: false
 { Args: Record<PropertyKey, never>; Returns: number
                            },
 "fail_notification":
-{ Args: { "p_error": string,"p_id": number }; Returns: Database["public"]['Enums']["notification_status"]
+{ Args: { "p_error": string,"p_final"?: boolean,"p_id": number }; Returns: Database["public"]['Enums']["notification_status"]
                            },
 "reorder_fixed_task_templates":
 { Args: { "p_assignee_id": string,"p_ids": (string)[] }; Returns: undefined
@@ -257,10 +257,34 @@ isOneToOne: false
 { Args: { "p_from": string,"p_to": string }; Returns: {
               "adhoc_done": number,"adhoc_total": number,"assignee_id": string,"fixed_done": number,"fixed_total": number,"overdue": number
             }[]
+                           },
+"zalo_clear_tokens":
+{ Args: Record<PropertyKey, never>; Returns: undefined
+                           },
+"zalo_configure_dispatch":
+{ Args: { "p_secret": string,"p_url": string }; Returns: undefined
+                           },
+"zalo_create_link_code":
+{ Args: Record<PropertyKey, never>; Returns: string
+                           },
+"zalo_get_tokens":
+{ Args: Record<PropertyKey, never>; Returns: Json
+                           },
+"zalo_link_by_code":
+{ Args: { "p_code": string,"p_zalo_user_id": string }; Returns: Json
+                           },
+"zalo_save_tokens":
+{ Args: { "p_access_token": string,"p_expires_at": string,"p_refresh_token": string }; Returns: undefined
+                           },
+"zalo_status":
+{ Args: Record<PropertyKey, never>; Returns: Json
+                           },
+"zalo_unlink":
+{ Args: { "p_user_id"?: string }; Returns: boolean
                            }
           }
           Enums: {
-            "app_role": "ADMIN"|"EMPLOYEE","notification_provider": "ZALO"|"IN_APP","notification_status": "PENDING"|"PROCESSING"|"SENT"|"FAILED","notification_type": "MORNING_SUMMARY"|"DEADLINE_REMINDER"|"OVERDUE_REMINDER"|"END_OF_DAY_SUMMARY"|"ADMIN_DAILY_SUMMARY"|"NEW_TASK"|"DEADLINE_CHANGED","task_action": "CREATED"|"UPDATED"|"RESCHEDULED"|"COMPLETED"|"REOPENED","task_display_status": "UPCOMING"|"TODAY"|"OVERDUE"|"COMPLETED","task_type": "FIXED"|"ADHOC"
+            "app_role": "ADMIN"|"EMPLOYEE","notification_provider": "ZALO"|"IN_APP","notification_status": "PENDING"|"PROCESSING"|"SENT"|"FAILED","notification_type": "MORNING_SUMMARY"|"DEADLINE_REMINDER"|"OVERDUE_REMINDER"|"END_OF_DAY_SUMMARY"|"ADMIN_DAILY_SUMMARY"|"NEW_TASK"|"DEADLINE_CHANGED"|"TEST","task_action": "CREATED"|"UPDATED"|"RESCHEDULED"|"COMPLETED"|"REOPENED","task_display_status": "UPCOMING"|"TODAY"|"OVERDUE"|"COMPLETED","task_type": "FIXED"|"ADHOC"
           }
           CompositeTypes: {
             [_ in never]: never
@@ -376,7 +400,7 @@ export type CompositeTypes<
 export const Constants = {
   "public": {
           Enums: {
-            "app_role": ["ADMIN", "EMPLOYEE"],"notification_provider": ["ZALO", "IN_APP"],"notification_status": ["PENDING", "PROCESSING", "SENT", "FAILED"],"notification_type": ["MORNING_SUMMARY", "DEADLINE_REMINDER", "OVERDUE_REMINDER", "END_OF_DAY_SUMMARY", "ADMIN_DAILY_SUMMARY", "NEW_TASK", "DEADLINE_CHANGED"],"task_action": ["CREATED", "UPDATED", "RESCHEDULED", "COMPLETED", "REOPENED"],"task_display_status": ["UPCOMING", "TODAY", "OVERDUE", "COMPLETED"],"task_type": ["FIXED", "ADHOC"]
+            "app_role": ["ADMIN", "EMPLOYEE"],"notification_provider": ["ZALO", "IN_APP"],"notification_status": ["PENDING", "PROCESSING", "SENT", "FAILED"],"notification_type": ["MORNING_SUMMARY", "DEADLINE_REMINDER", "OVERDUE_REMINDER", "END_OF_DAY_SUMMARY", "ADMIN_DAILY_SUMMARY", "NEW_TASK", "DEADLINE_CHANGED", "TEST"],"task_action": ["CREATED", "UPDATED", "RESCHEDULED", "COMPLETED", "REOPENED"],"task_display_status": ["UPCOMING", "TODAY", "OVERDUE", "COMPLETED"],"task_type": ["FIXED", "ADHOC"]
           }
         }
 } as const

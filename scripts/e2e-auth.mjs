@@ -426,14 +426,53 @@ try {
   await page.getByRole("link", { name: "Team Todo" }).first().waitFor();
 
   // ---------- admin: notification times + log ----------
-  await page.getByLabel("Cho admin (cả team)").fill("18:15");
+  await page.getByLabel("Tổng kết team").fill("18:15");
   await page.getByRole("button", { name: "Lưu giờ gửi" }).click();
-  await page.getByText("Đã lưu giờ gửi tổng kết").waitFor();
+  await page.getByText("Đã lưu giờ gửi").waitFor();
   await page.reload();
-  check("admin sets when the daily summaries go out", (await page.getByLabel("Cho admin (cả team)").inputValue()) === "18:15");
-  await page.getByLabel("Cho admin (cả team)").fill("18:00");
+  check("admin sets when the daily summaries go out", (await page.getByLabel("Tổng kết team").inputValue()) === "18:15");
+  await page.getByLabel("Tổng kết team").fill("18:00");
+
+  // ---------- morning summary: admin moves it to "now" → each member gets ONE message with their own numbers ----------
+  check("morning summary defaults to 08:00", (await page.getByLabel("Tóm tắt buổi sáng").inputValue()) === "08:00");
+  const nowHHMM = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Bangkok", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date());
+  await page.getByLabel("Tóm tắt buổi sáng").fill(nowHHMM);
   await page.getByRole("button", { name: "Lưu giờ gửi" }).click();
-  await page.getByText("Đã lưu giờ gửi tổng kết").waitFor();
+  await page.getByText("Đã lưu giờ gửi").waitFor();
+
+  const inboxOf = async (email) => {
+    const memberPage = await (await browser.newContext({ viewport: { width: 390, height: 844 } })).newPage();
+    await login(memberPage, email);
+    await memberPage.waitForURL("**/today");
+    await memberPage.goto(`${BASE}/notifications`);
+    return memberPage;
+  };
+  const anInbox = await inboxOf("an@team.local");
+  const summaryCard = () => anInbox.getByRole("listitem").filter({ hasText: "Công việc hôm nay" });
+  for (let attempt = 0; attempt < 20 && (await summaryCard().count()) === 0; attempt++) {
+    await anInbox.waitForTimeout(5000);
+    await anInbox.reload();
+  }
+  const anSummary = (await summaryCard().allInnerTexts()).join("\n---\n");
+  check(
+    "An gets exactly one morning summary, with An's numbers (3 fixed, 1 overdue)",
+    (await summaryCard().count()) === 1 && /Cố định: 3\nĐến hạn hôm nay: [12]\nQuá hạn: 1/.test(anSummary),
+    anSummary,
+  );
+  check("the member's settings show the team's morning time", await (async () => {
+    await anInbox.goto(`${BASE}/profile`);
+    return anInbox.getByText(`Một tin mỗi sáng lúc ${nowHHMM}`).isVisible();
+  })());
+  await anInbox.context().close();
+
+  const binhInbox = await inboxOf("binh@team.local");
+  const binhSummary = (await binhInbox.getByRole("listitem").filter({ hasText: "Công việc hôm nay" }).allInnerTexts()).join("\n---\n");
+  check("Bình's summary carries Bình's numbers, not An's (no ad-hoc tasks)", /Cố định: [1-3]\nĐến hạn hôm nay: 0\nQuá hạn: 0/.test(binhSummary), binhSummary);
+  await binhInbox.context().close();
+
+  await page.getByLabel("Tóm tắt buổi sáng").fill("08:00");
+  await page.getByRole("button", { name: "Lưu giờ gửi" }).click();
+  await page.getByText("Đã lưu giờ gửi").waitFor();
 
   await page.getByRole("link", { name: /Nhật ký gửi thông báo/ }).click();
   await page.waitForURL("**/settings/notifications");
@@ -481,6 +520,8 @@ try {
   check("desktop shows sidebar", await dpage.locator("aside").isVisible());
   if (SHOTS) await dpage.screenshot({ path: `${SHOTS}/e2e-admin-members-desktop.png` });
   await dpage.goto(`${BASE}/fixed-tasks`);
+  // The page opens on the first member alphabetically; An is the one with these templates.
+  await dpage.getByRole("link", { name: /Nguyễn Văn An/ }).click();
   await dpage.getByText("Kiểm tra đơn hàng mới").waitFor();
   await dpage.waitForTimeout(600);
   if (SHOTS) await dpage.screenshot({ path: `${SHOTS}/e2e-admin-fixed-desktop.png` });

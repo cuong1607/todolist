@@ -4,9 +4,7 @@ import { useActionState, useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import { trimSeconds } from "@/lib/time";
 import { cn } from "@/lib/utils";
 import type { Tables } from "@/types/database";
 import { updateNotificationSettings, type ProfileFormState } from "./actions";
@@ -14,7 +12,6 @@ import { updateNotificationSettings, type ProfileFormState } from "./actions";
 export type NotificationPrefs = Pick<
   Tables<"notification_settings">,
   | "daily_summary_enabled"
-  | "daily_summary_time"
   | "deadline_reminder_enabled"
   | "remind_before_minutes"
   | "overdue_alert_enabled"
@@ -29,7 +26,14 @@ const REMIND_OPTIONS = [
   { value: 1440, label: "1 ngày" },
 ];
 
-export function NotificationForm({ settings, masterEnabled }: { settings: NotificationPrefs; masterEnabled: boolean }) {
+type Props = {
+  settings: NotificationPrefs;
+  masterEnabled: boolean;
+  /** The team's morning summary time (HH:MM), set by an admin — shown, not editable here. */
+  morningTime: string;
+};
+
+export function NotificationForm({ settings, masterEnabled, morningTime }: Props) {
   const [state, action, pending] = useActionState<ProfileFormState, FormData>(updateNotificationSettings, {});
   const [daily, setDaily] = useState(settings.daily_summary_enabled);
   const [reminder, setReminder] = useState(settings.deadline_reminder_enabled);
@@ -56,19 +60,9 @@ export function NotificationForm({ settings, masterEnabled }: { settings: Notifi
       )}
 
       <div className={cn("divide-y rounded-xl border", !masterEnabled && "opacity-60")}>
-        <Row title="Tóm tắt việc hôm nay" description="Gửi danh sách việc mỗi sáng">
+        <Row title="Tóm tắt việc hôm nay" description={`Một tin mỗi sáng lúc ${morningTime}`}>
           <Switch checked={daily} onCheckedChange={setDaily} aria-label="Tóm tắt việc hôm nay" />
           {daily && <input type="hidden" name="daily_summary_enabled" value="on" />}
-        </Row>
-        <Row title="Giờ gửi tóm tắt" htmlFor="n-daily-time" muted={!daily}>
-          <Input
-            id="n-daily-time"
-            name="daily_summary_time"
-            type="time"
-            required
-            defaultValue={trimSeconds(settings.daily_summary_time)}
-            className="h-11 w-32 text-base"
-          />
         </Row>
         <Row title="Nhắc trước deadline" description="Cho việc có giờ hạn">
           <Switch checked={reminder} onCheckedChange={setReminder} aria-label="Nhắc trước deadline" />

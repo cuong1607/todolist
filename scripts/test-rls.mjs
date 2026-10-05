@@ -86,7 +86,7 @@ async function signIn(email) {
   const admin = await signIn("admin@team.local");
 
   const { data: all } = await admin.from("profiles").select("id");
-  check("admin reads all profiles", all?.length === 3, all);
+  check("admin reads all profiles", all?.length === 5, all);
 
   const { data: promoted, error: promoteErr } = await admin
     .from("profiles").update({ role: "ADMIN" }).eq("id", BINH).select("role");
@@ -315,7 +315,7 @@ async function signIn(email) {
   check("employee updates own notification settings", ownSettings?.[0]?.remind_before_minutes === 45, ownSettingsErr);
   await an.from("notification_settings").update({ remind_before_minutes: 30 }).eq("user_id", AN);
   const { data: allSettings } = await admin.from("notification_settings").select("user_id");
-  check("admin reads all notification settings", allSettings?.length === 3, allSettings?.length);
+  check("admin reads all notification settings", allSettings?.length === 5, allSettings?.length);
 
   const { error: logWriteErr } = await an.from("notification_logs").insert({ user_id: AN, provider: "ZALO", type: "NEW_TASK" });
   check("employee cannot write notification logs", !!logWriteErr, logWriteErr);

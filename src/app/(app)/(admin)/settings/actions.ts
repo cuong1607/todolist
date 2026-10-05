@@ -10,15 +10,16 @@ const teamSchema = z.object({
 });
 
 const time = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Giờ không hợp lệ");
-const summaryTimesSchema = z.object({ end_of_day_summary_time: time, admin_daily_summary_time: time });
+const summaryTimesSchema = z.object({ morning_summary_time: time, end_of_day_summary_time: time, admin_daily_summary_time: time });
 
 export type SettingsFormState = { ok?: boolean; error?: string };
 
-/** When the scheduler sends the end-of-day summaries (read by private.schedule_notifications). */
+/** When the scheduler sends the daily summaries (read by the private.schedule_* functions). */
 export async function updateSummaryTimes(_prev: SettingsFormState, formData: FormData): Promise<SettingsFormState> {
   await requireAdmin();
 
   const parsed = summaryTimesSchema.safeParse({
+    morning_summary_time: formData.get("morning_summary_time"),
     end_of_day_summary_time: formData.get("end_of_day_summary_time"),
     admin_daily_summary_time: formData.get("admin_daily_summary_time"),
   });
@@ -31,6 +32,8 @@ export async function updateSummaryTimes(_prev: SettingsFormState, formData: For
   if (error) return { error: "Không lưu được. Thử lại sau." };
 
   revalidatePath("/settings");
+  // Members see the morning time next to their on/off switch.
+  revalidatePath("/profile");
   return { ok: true };
 }
 

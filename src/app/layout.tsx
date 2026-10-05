@@ -21,6 +21,8 @@ export const metadata: Metadata = {
   },
   description: "Quản lý công việc nội bộ cho team nhỏ — đơn giản, nhanh, dễ dùng.",
   appleWebApp: { capable: true, title: "Team Todo", statusBarStyle: "default" },
+  // Zalo verifies domain ownership (required before it accepts our webhook URL) through this meta tag.
+  ...(process.env.ZALO_SITE_VERIFICATION && { other: { "zalo-platform-site-verification": process.env.ZALO_SITE_VERIFICATION } }),
 };
 
 export const viewport: Viewport = {
