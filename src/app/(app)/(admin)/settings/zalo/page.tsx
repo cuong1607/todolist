@@ -105,6 +105,14 @@ export default async function ZaloSettingsPage({ searchParams }: PageProps<"/set
                     : "Chưa kết nối"
                 }
               />
+              {connected && !oaName && (
+                // The name comes from Zalo's "OA info" API right after connecting; an empty name means that call was refused.
+                <StatusLine
+                  ok={false}
+                  label="Quyền của ứng dụng"
+                  detail="Không đọc được thông tin OA. Có thể OA chưa cấp đủ quyền cho ứng dụng: cấp quyền ở Zalo for Developers rồi bấm Kết nối lại."
+                />
+              )}
               {connected && (
                 <StatusLine
                   ok={status.success && status.data.dispatch_configured}

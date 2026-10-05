@@ -32,7 +32,12 @@ Trang Zalo OA trong ứng dụng có mục "Giá trị cần khai báo ở Zalo 
 
 1. **Official Account Callback URL** → dán vào ứng dụng Zalo, mục Official Account → Thiết lập chung.
 2. **Webhook URL** → dán vào mục Webhook. Zalo yêu cầu domain đã được xác thực trước khi nhận địa chỉ này (xem `ZALO_SITE_VERIFICATION` ở trên).
-3. Ở mục Webhook, bật sự kiện **Người dùng gửi tin nhắn văn bản** (`user_send_text`).
+3. Ở mục Webhook, **bật webhook** và bật sự kiện **Người dùng gửi tin nhắn văn bản** (`user_send_text`). Không có sự kiện này thì thành viên gửi mã mà ứng dụng không nhận được gì.
+4. Ở mục Official Account, yêu cầu các nhóm quyền ứng dụng cần: đọc thông tin OA, gửi tin nhắn tới người quan tâm, và nhận sự kiện tin nhắn. Quản trị viên OA phải chấp thuận. Nếu cấp quyền **sau** khi đã kết nối, phải bấm **Kết nối lại** trong ứng dụng để token mới mang quyền mới.
+
+Dấu hiệu thiếu quyền: trang Zalo OA hiện dòng cảnh báo "Quyền của ứng dụng", hoặc nhật ký ghi lỗi "Official Account has not authorized this api".
+
+Dấu hiệu webhook chưa chạy: log máy chủ không có yêu cầu `POST /api/zalo/webhook` nào khi một thành viên nhắn cho OA.
 
 ## Bước 3 — Kết nối và bật
 
