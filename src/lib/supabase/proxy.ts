@@ -9,10 +9,14 @@ import type { Database } from "@/types/database";
  */
 const PUBLIC_PATHS = ["/login", "/logout", "/robots.txt", "/api/health", "/api/zalo/webhook", "/api/cron"];
 
+/** Zalo's domain-verification file, served from /public (e.g. /zalo_verifierAbC123.html). */
+const ZALO_VERIFIER_FILE = /^\/zalo_verifier[\w-]+\.html$/;
+
 function isPublic(pathname: string) {
   // The home page itself is public: signed-out visitors (and Zalo's domain-verification crawler)
   // get the sign-in screen there with a 200, not a redirect.
-  return pathname === "/" || PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+  if (pathname === "/" || ZALO_VERIFIER_FILE.test(pathname)) return true;
+  return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }
 
 /**
