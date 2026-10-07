@@ -5,7 +5,7 @@ import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ThemeSelector } from "@/components/theme-toggle";
-import { getSummaryTimes, getTeamName } from "@/lib/settings";
+import { getNotificationSchedule, getTeamName } from "@/lib/settings";
 import { SummaryTimesForm } from "./summary-times-form";
 import { checkSupabaseHealth, type SupabaseHealth } from "@/lib/supabase/health";
 import { TeamForm } from "./team-form";
@@ -13,7 +13,7 @@ import { TeamForm } from "./team-form";
 export const metadata: Metadata = { title: "Cài đặt" };
 
 export default async function SettingsPage() {
-  const [health, teamName, summaryTimes] = await Promise.all([checkSupabaseHealth(), getTeamName(), getSummaryTimes()]);
+  const [health, teamName, schedule] = await Promise.all([checkSupabaseHealth(), getTeamName(), getNotificationSchedule()]);
 
   return (
     <>
@@ -32,10 +32,10 @@ export default async function SettingsPage() {
         <Card className="md:col-span-2">
           <CardHeader>
             <CardTitle>Thông báo</CardTitle>
-            <CardDescription>Giờ gửi các bản tin hằng ngày cho cả team. Mỗi người tự bật/tắt từng loại ở Tài khoản.</CardDescription>
+            <CardDescription>Lịch gửi thông báo cho cả team; thay đổi có hiệu lực ngay. Mỗi người tự bật/tắt từng loại ở Tài khoản.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <SummaryTimesForm morning={summaryTimes.morning} endOfDay={summaryTimes.endOfDay} adminDaily={summaryTimes.adminDaily} />
+            <SummaryTimesForm schedule={schedule} />
             <Link
               href="/settings/zalo"
               className="flex items-center gap-3 rounded-xl bg-muted px-4 py-3 outline-none transition-colors duration-(--duration-normal) hover:bg-muted/70 focus-visible:ring-3 focus-visible:ring-ring/50"

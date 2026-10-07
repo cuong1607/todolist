@@ -41,12 +41,12 @@ select matches(
 select is(
   (select array_agg(t.title order by t.title) from notification_logs n join tasks t on t.id = n.task_id where n.type = 'DEADLINE_REMINDER'),
   array['due soon'],
-  'deadline reminder: only inside remind_before_minutes, never for date-only (23:59) deadlines'
+  'deadline reminder: only inside the team''s lead time, never for date-only (23:59) deadlines'
 );
 select is(
   (select scheduled_at from notification_logs where type = 'DEADLINE_REMINDER'),
-  pg_temp.at('07:55'),
-  'deadline reminder is scheduled remind_before_minutes (30) ahead of the deadline'
+  pg_temp.at('07:25'),
+  'deadline reminder is scheduled the team''s lead time (60 minutes) ahead of the deadline'
 );
 select ok(
   exists (select 1 from notification_logs n where n.type = 'OVERDUE_REMINDER' and n.task_id = '20000000-0000-4000-8000-000000000004')
@@ -77,11 +77,11 @@ select is(
   'a switched-off notification type is not scheduled'
 );
 
--- ---------- evening summaries (17:30 / 18:00 from system_settings) ----------
-select private.schedule_notifications(pg_temp.at('18:05'));
+-- ---------- evening summaries (18:00 / 18:10 from system_settings) ----------
+select private.schedule_notifications(pg_temp.at('18:15'));
 select matches(
   (select payload ->> 'body' from notification_logs where type = 'END_OF_DAY_SUMMARY' and user_id = '00000000-0000-4000-8000-000000000002'),
-  '^Hôm nay bạn đã xong \d+/\d+ việc\.',
+  E'^Cố định: xong \\d+, chưa xong \\d+\nPhát sinh: xong hôm nay \\d+, đang tồn \\d+, quá hạn \\d+$',
   'end-of-day summary for members with work today'
 );
 select is(
@@ -91,11 +91,11 @@ select is(
 );
 update system_settings set value = '"20:00"' where key = 'admin_daily_summary_time';
 delete from notification_logs where type = 'ADMIN_DAILY_SUMMARY';
-select private.schedule_notifications(pg_temp.at('18:05'));
+select private.schedule_notifications(pg_temp.at('18:15'));
 select is(pg_temp.logs('ADMIN_DAILY_SUMMARY', '00000000-0000-4000-8000-000000000001'), 0, 'summary time follows system_settings');
 
 -- ---------- IN_APP provider ----------
-select cmp_ok(private.deliver_in_app(pg_temp.at('18:05')), '>', 0, 'in-app delivery marks due rows as sent');
+select cmp_ok(private.deliver_in_app(pg_temp.at('18:15')), '>', 0, 'in-app delivery marks due rows as sent');
 select is(
   (select count(*)::integer from notification_logs where provider = 'IN_APP' and (status <> 'SENT' or sent_at is null)),
   0,

@@ -57,13 +57,13 @@ isOneToOne: false
                   ]
                 },"notification_settings": {
                   Row: {
-                    "created_at": string,"daily_summary_enabled": boolean,"deadline_reminder_enabled": boolean,"end_of_day_summary_enabled": boolean,"overdue_alert_enabled": boolean,"remind_before_minutes": number,"updated_at": string,"user_id": string
+                    "created_at": string,"daily_summary_enabled": boolean,"deadline_reminder_enabled": boolean,"end_of_day_summary_enabled": boolean,"overdue_alert_enabled": boolean,"updated_at": string,"user_id": string
                   }
                   Insert: {
-                    "created_at"?: string,"daily_summary_enabled"?: boolean,"deadline_reminder_enabled"?: boolean,"end_of_day_summary_enabled"?: boolean,"overdue_alert_enabled"?: boolean,"remind_before_minutes"?: number,"updated_at"?: string,"user_id": string
+                    "created_at"?: string,"daily_summary_enabled"?: boolean,"deadline_reminder_enabled"?: boolean,"end_of_day_summary_enabled"?: boolean,"overdue_alert_enabled"?: boolean,"updated_at"?: string,"user_id": string
                   }
                   Update: {
-                    "created_at"?: string,"daily_summary_enabled"?: boolean,"deadline_reminder_enabled"?: boolean,"end_of_day_summary_enabled"?: boolean,"overdue_alert_enabled"?: boolean,"remind_before_minutes"?: number,"updated_at"?: string,"user_id"?: string
+                    "created_at"?: string,"daily_summary_enabled"?: boolean,"deadline_reminder_enabled"?: boolean,"end_of_day_summary_enabled"?: boolean,"overdue_alert_enabled"?: boolean,"updated_at"?: string,"user_id"?: string
                   }
                   Relationships: [
                     {
@@ -213,6 +213,11 @@ isOneToOne: false
                            },
 "fail_notification":
 { Args: { "p_error": string,"p_final"?: boolean,"p_id": number }; Returns: Database["public"]['Enums']["notification_status"]
+                           },
+"notification_schedule":
+{ Args: Record<PropertyKey, never>; Returns: {
+              "admin_daily_summary_enabled": boolean,"admin_daily_summary_time": string,"deadline_reminder_minutes": number,"end_of_day_summary_time": string,"morning_summary_time": string,"timezone": string
+            }[]
                            },
 "reorder_fixed_task_templates":
 { Args: { "p_assignee_id": string,"p_ids": (string)[] }; Returns: undefined

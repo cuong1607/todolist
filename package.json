@@ -17,6 +17,7 @@
     "db:types": "supabase gen types typescript --local --schema public > src/types/database.ts",
     "test:rls": "node --env-file=.env.local scripts/test-rls.mjs",
     "test:e2e": "node scripts/e2e-auth.mjs",
+    "test:ux": "node scripts/e2e-ux.mjs",
     "test:zalo": "node --env-file=.env.local scripts/test-zalo.mjs",
     "test:db": "supabase test db"
   },

@@ -3,19 +3,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
-import { CalendarCheck, Check, ChevronDown, Clock, Plus } from "lucide-react";
+import { CalendarCheck, Check, ChevronDown, CircleCheck, Clock, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/empty-state";
 import { Fab } from "@/components/shell/fab";
 import { createClient } from "@/lib/supabase/client";
 import { deriveStatus, type DisplayStatus } from "@/lib/task-status";
-import { formatDeadline, formatTimeLocal, localDateOf, todayLocal } from "@/lib/time";
+import { formatDeadline, formatTimeLocal, localDateOf, toDeadlineISO, todayLocal } from "@/lib/time";
 import { ease, transition } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import type { Tables } from "@/types/database";
-import { setTaskDone } from "./actions";
-import { AdhocDialog } from "./adhoc-dialog";
+import { saveTaskNote, setTaskDone } from "./actions";
+import { createAdhocTask, updateAdhocTask, type AdhocFormState } from "./adhoc-actions";
+import { AdhocDialog, type AdhocValues } from "./adhoc-dialog";
 import { FixedTaskDialog } from "./fixed-task-dialog";
 import { toTodayTask, type TodayTask } from "./task-types";
 
@@ -91,6 +92,13 @@ export function TodayView({ initialTasks, userId, greeting, dateLabel }: Props) 
   // Ids with a request in flight: ignore Realtime echoes for them until the server answers.
   const inFlight = useRef(new Set<string>());
   const [settling, setSettling] = useState<ReadonlySet<string>>(new Set());
+  // Optimistic creates: rows shown before the server has answered (temporary ids).
+  const [pending, setPending] = useState<ReadonlySet<string>>(new Set());
+  // Server id → the temporary id its card was first rendered with, so the card does not remount.
+  const [aliases, setAliases] = useState<Record<string, string>>({});
+  // While a create is in flight its own Realtime INSERT would show up as a second card: hold inserts back.
+  const creating = useRef(0);
+  const deferred = useRef<TodayTask[]>([]);
   const [adhocDialog, setAdhocDialog] = useState<{ open: boolean; task: TodayTask | null }>({ open: false, task: null });
   const [fixedDialog, setFixedDialog] = useState<{ open: boolean; task: TodayTask | null }>({ open: false, task: null });
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
@@ -131,6 +139,10 @@ export function TodayView({ initialTasks, userId, greeting, dateLabel }: Props) 
           }
           const row = toTodayTask(payload.new as Tables<"tasks">);
           if (inFlight.current.has(row.id)) return;
+          if (payload.eventType === "INSERT" && creating.current > 0) {
+            deferred.current.push(row);
+            return;
+          }
           upsert(row);
         },
       )
@@ -212,11 +224,101 @@ export function TodayView({ initialTasks, userId, greeting, dateLabel }: Props) 
     }
   }
 
-  /** After create/edit: merge, and open the section it landed in so the user sees the result. */
-  function handleSaved(row: TodayTask) {
-    upsert(row);
+  /** Open the section a row lands in, so the user sees the result of a create/edit. */
+  function reveal(row: TodayTask) {
     const key = sectionOf(row, deriveStatus(row, new Date()));
     if (SECTIONS.find((s) => s.key === key)?.collapsible) setExpanded((e) => ({ ...e, [key]: true }));
+  }
+
+  /** Create or edit an ad-hoc task. The list changes at once; the server confirms (or we roll back) afterwards. */
+  async function saveAdhoc(values: AdhocValues, existing: TodayTask | null) {
+    const fields = {
+      title: values.title,
+      note: values.note || null,
+      deadline_at: values.dueDate ? new Date(toDeadlineISO(values.dueDate, values.dueTime)).toISOString() : null,
+    };
+    const formData = new FormData();
+    formData.set("title", values.title);
+    formData.set("note", values.note);
+    formData.set("due_date", values.dueDate);
+    formData.set("due_time", values.dueTime);
+    const retry = { label: "Thử lại", onClick: () => void saveAdhoc(values, existing) };
+    const failed = (): AdhocFormState => ({});
+
+    if (existing) {
+      formData.set("id", existing.id);
+      inFlight.current.add(existing.id);
+      setTasks((prev) => prev.map((t) => (t.id === existing.id ? { ...t, ...fields } : t)));
+      reveal({ ...existing, ...fields });
+
+      const result = await updateAdhocTask({}, formData).catch(failed);
+      inFlight.current.delete(existing.id);
+      if (result.ok && result.task) {
+        upsert(result.task);
+        toast.success("Đã lưu");
+      } else {
+        const { title, note, deadline_at } = existing;
+        setTasks((prev) => prev.map((t) => (t.id === existing.id ? { ...t, title, note, deadline_at } : t)));
+        toast.error(result.error ?? "Không lưu được. Thử lại sau.", { action: retry });
+      }
+      return;
+    }
+
+    const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const optimistic: TodayTask = {
+      id: tempId,
+      type: "ADHOC",
+      ...fields,
+      allow_employee_note: false,
+      employee_note: null,
+      completed: false,
+      completed_at: null,
+      task_date: null,
+      sort_order: 0,
+      created_at: new Date().toISOString(),
+    };
+    creating.current += 1;
+    setPending((p) => new Set(p).add(tempId));
+    setTasks((prev) => [...prev, optimistic]);
+    reveal(optimistic);
+
+    const result = await createAdhocTask({}, formData).catch(failed);
+    creating.current -= 1;
+    setPending((p) => {
+      const copy = new Set(p);
+      copy.delete(tempId);
+      return copy;
+    });
+    const saved = result.ok ? result.task : undefined;
+    if (saved) {
+      setAliases((a) => ({ ...a, [saved.id]: tempId }));
+      setTasks((prev) => [...prev.filter((t) => t.id !== tempId && t.id !== saved.id), saved]);
+      toast.success("Đã thêm việc");
+    } else {
+      setTasks((prev) => prev.filter((t) => t.id !== tempId));
+      toast.error(result.error ?? "Không tạo được. Thử lại sau.", { action: retry });
+    }
+    if (creating.current === 0) {
+      const rows = deferred.current;
+      deferred.current = [];
+      rows.forEach(upsert);
+    }
+  }
+
+  /** The member's note on a fixed task: shown as saved at once, rolled back if the server refuses. */
+  async function saveNote(task: TodayTask, note: string) {
+    inFlight.current.add(task.id);
+    setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, employee_note: note || null } : t)));
+
+    const result = await saveTaskNote(task.id, note).catch(() => ({ ok: false as const, error: "Không lưu được ghi chú" }));
+    inFlight.current.delete(task.id);
+    if (result.ok) {
+      upsert(result.task);
+      toast.success("Đã lưu ghi chú");
+    } else {
+      setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, employee_note: task.employee_note } : t)));
+      toast.error(result.error, { action: { label: "Thử lại", onClick: () => void saveNote(task, note) } });
+    }
   }
 
   const openCreate = () => setAdhocDialog({ open: true, task: null });
@@ -241,19 +343,6 @@ export function TodayView({ initialTasks, userId, greeting, dateLabel }: Props) 
               <span className="text-title tabular-nums">{done}</span>
               <span className="text-muted-foreground">/{total}</span> công việc hoàn thành
             </p>
-            <AnimatePresence initial={false}>
-              {allDone && (
-                <motion.span
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={cardTransition}
-                  className="text-caption font-semibold text-success"
-                >
-                  Xong hết rồi! 🎉
-                </motion.span>
-              )}
-            </AnimatePresence>
           </div>
           <div
             className="h-2.5 overflow-hidden rounded-full bg-muted"
@@ -270,6 +359,22 @@ export function TodayView({ initialTasks, userId, greeting, dateLabel }: Props) 
               transition={{ duration: 0.25, ease: ease.outSoft }}
             />
           </div>
+          <AnimatePresence initial={false}>
+            {allDone && (
+              <motion.p
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={cardTransition}
+                className="overflow-hidden text-caption font-medium text-success"
+              >
+                <span className="flex items-center gap-1.5 pt-3">
+                  <CircleCheck className="size-4 shrink-0" />
+                  Bạn đã hoàn thành toàn bộ công việc hôm nay.
+                </span>
+              </motion.p>
+            )}
+          </AnimatePresence>
         </div>
 
         <Button size="lg" onClick={openCreate} className="hidden md:inline-flex">
@@ -315,7 +420,7 @@ export function TodayView({ initialTasks, userId, greeting, dateLabel }: Props) 
                     <AnimatePresence initial={false} mode="popLayout">
                       {items.map((task) => (
                         <motion.li
-                          key={task.id}
+                          key={aliases[task.id] ?? task.id}
                           layout
                           initial={{ opacity: 0, y: 6 }}
                           animate={{ opacity: 1, y: 0 }}
@@ -326,6 +431,7 @@ export function TodayView({ initialTasks, userId, greeting, dateLabel }: Props) 
                             task={task}
                             status={deriveStatus(task, now)}
                             now={now}
+                            pending={pending.has(task.id)}
                             onToggle={() => void toggle(task, !task.completed)}
                             onOpen={() => openTask(task)}
                           />
@@ -345,14 +451,14 @@ export function TodayView({ initialTasks, userId, greeting, dateLabel }: Props) 
         open={adhocDialog.open}
         task={adhocDialog.task}
         onOpenChange={(open) => setAdhocDialog((d) => ({ ...d, open }))}
-        onSaved={handleSaved}
+        onSubmit={(values, task) => void saveAdhoc(values, task)}
       />
       <FixedTaskDialog
         open={fixedDialog.open}
         task={fixedDialog.task ? (tasks.find((t) => t.id === fixedDialog.task!.id) ?? fixedDialog.task) : null}
         onOpenChange={(open) => setFixedDialog((d) => ({ ...d, open }))}
         onToggle={(task) => void toggle(task, !task.completed)}
-        onSaved={upsert}
+        onSaveNote={(task, note) => void saveNote(task, note)}
       />
     </div>
   );
@@ -403,12 +509,14 @@ type TaskCardProps = {
   task: TodayTask;
   status: DisplayStatus;
   now: Date;
+  /** Shown optimistically; the server has not confirmed it yet, so it cannot be ticked or opened. */
+  pending?: boolean;
   onToggle: () => void;
   onOpen: () => void;
 };
 
 /** Minimal card: checkbox · title · deadline · one-line note preview. Everything else lives in the detail sheet. */
-function TaskCard({ task, status, now, onToggle, onOpen }: TaskCardProps) {
+function TaskCard({ task, status, now, pending, onToggle, onOpen }: TaskCardProps) {
   const done = task.completed;
   const overdue = status === "OVERDUE";
   const notePreview = task.type === "FIXED" ? (task.employee_note ?? task.note) : task.note;
@@ -423,10 +531,11 @@ function TaskCard({ task, status, now, onToggle, onOpen }: TaskCardProps) {
 
   return (
     <div
+      aria-busy={pending || undefined}
       className={cn(
-        "flex items-start rounded-xl border bg-surface shadow-card transition-colors duration-200",
+        "flex items-start rounded-xl border bg-surface shadow-card transition-[background-color,opacity] duration-200",
         done && "bg-muted/40 shadow-none",
-        overdue && !done && "border-danger/30",
+        pending && "opacity-70",
       )}
     >
       {/* 44px hit area around a 28px circle — easy to hit one-handed. */}
@@ -436,6 +545,7 @@ function TaskCard({ task, status, now, onToggle, onOpen }: TaskCardProps) {
         aria-checked={done}
         aria-label={done ? `Mở lại “${task.title}”` : `Hoàn thành “${task.title}”`}
         onClick={onToggle}
+        disabled={pending}
         whileTap={{ scale: 0.85 }}
         transition={{ duration: 0.15 }}
         className="flex size-12 shrink-0 items-center justify-center rounded-xl outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
@@ -443,7 +553,7 @@ function TaskCard({ task, status, now, onToggle, onOpen }: TaskCardProps) {
         <span
           className={cn(
             "flex size-7 items-center justify-center rounded-full border-2 transition-colors duration-200",
-            done ? "border-success bg-success text-success-foreground" : overdue ? "border-danger/60" : "border-input",
+            done ? "border-success bg-success text-success-foreground" : "border-input",
           )}
         >
           <AnimatePresence initial={false}>
@@ -465,6 +575,7 @@ function TaskCard({ task, status, now, onToggle, onOpen }: TaskCardProps) {
       <button
         type="button"
         onClick={onOpen}
+        disabled={pending}
         aria-label={`Chi tiết “${task.title}”`}
         className="min-w-0 flex-1 rounded-r-xl py-3 pr-3 text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
       >

@@ -4,6 +4,7 @@ import { ChevronRight, Users } from "lucide-react";
 import { z } from "zod";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
+import { LinkPending } from "@/components/link-pending";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -77,11 +78,12 @@ export default async function OverviewPage({ searchParams }: PageProps<"/overvie
                   scroll={false}
                   aria-current={active ? "page" : undefined}
                   className={cn(
-                    "flex h-10 items-center rounded-full border px-4 text-caption font-medium whitespace-nowrap outline-none transition-colors duration-(--duration-fast) focus-visible:ring-3 focus-visible:ring-ring/50",
+                    "flex h-10 items-center gap-1.5 rounded-full border px-4 text-caption font-medium whitespace-nowrap outline-none transition-colors duration-(--duration-fast) focus-visible:ring-3 focus-visible:ring-ring/50",
                     active ? "border-primary bg-primary text-primary-foreground" : "bg-surface text-muted-foreground hover:bg-muted",
                   )}
                 >
                   {o.label}
+                  <LinkPending />
                 </Link>
               </li>
             );
@@ -168,7 +170,7 @@ const TONES = {
 
 function Summary({ label, value, tone }: { label: string; value: number; tone?: keyof typeof TONES }) {
   return (
-    <div className={cn("rounded-2xl border bg-surface p-4 shadow-card", tone === "danger" && "border-danger/30 bg-danger-soft/40")}>
+    <div className="rounded-2xl border bg-surface p-4 shadow-card">
       <dt className="text-caption text-muted-foreground">{label}</dt>
       {/* Colour on an inner span: merged onto the dd, a text colour would drop `text-display`. */}
       <dd className="mt-1 text-display tabular-nums">
@@ -201,10 +203,8 @@ function MemberCard({ href, name, avatarUrl, inactive, stats }: MemberCardProps)
       href={href}
       scroll={false}
       aria-label={`${name}: ${state.label}. Xem chi tiết`}
-      className={cn(
-        "block rounded-2xl border bg-surface p-4 shadow-card outline-none transition-colors duration-(--duration-normal) hover:bg-muted/50 focus-visible:ring-3 focus-visible:ring-ring/50",
-        stats.overdue > 0 && "border-danger/30",
-      )}
+      // Red stays on the overdue badge and number only — the card itself never turns red.
+      className="block rounded-2xl border bg-surface p-4 shadow-card outline-none transition-colors duration-(--duration-normal) hover:bg-muted/50 focus-visible:ring-3 focus-visible:ring-ring/50"
     >
       <div className="flex items-center gap-3">
         <UserAvatar name={name} src={avatarUrl} size="lg" className="size-11" />
@@ -215,7 +215,11 @@ function MemberCard({ href, name, avatarUrl, inactive, stats }: MemberCardProps)
           </p>
           <span className={cn("mt-1 inline-flex h-5 items-center rounded-full px-2 text-micro font-semibold", state.className)}>{state.label}</span>
         </div>
-        <ChevronRight className="size-5 shrink-0 text-muted-foreground" />
+        <span className="flex size-5 shrink-0 items-center justify-center text-muted-foreground">
+          <LinkPending>
+            <ChevronRight className="size-5" />
+          </LinkPending>
+        </span>
       </div>
 
       <div

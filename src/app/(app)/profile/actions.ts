@@ -54,7 +54,6 @@ export async function unlinkZalo(): Promise<ZaloLinkResult> {
 const notificationSchema = z.object({
   daily_summary_enabled: z.boolean(),
   deadline_reminder_enabled: z.boolean(),
-  remind_before_minutes: z.coerce.number().int().min(5, "Nhắc trước ít nhất 5 phút").max(1440, "Nhắc trước tối đa 1 ngày"),
   overdue_alert_enabled: z.boolean(),
   end_of_day_summary_enabled: z.boolean(),
 });
@@ -65,7 +64,6 @@ export async function updateNotificationSettings(_prev: ProfileFormState, formDa
   const parsed = notificationSchema.safeParse({
     daily_summary_enabled: formData.get("daily_summary_enabled") === "on",
     deadline_reminder_enabled: formData.get("deadline_reminder_enabled") === "on",
-    remind_before_minutes: formData.get("remind_before_minutes"),
     overdue_alert_enabled: formData.get("overdue_alert_enabled") === "on",
     end_of_day_summary_enabled: formData.get("end_of_day_summary_enabled") === "on",
   });

@@ -9,7 +9,7 @@ import { UserAvatar } from "@/components/shell/user-avatar";
 import { RoleBadge } from "@/components/role-badge";
 import { requireUser } from "@/lib/auth";
 import { logout } from "@/app/login/actions";
-import { getSummaryTimes, getZaloChannel } from "@/lib/settings";
+import { getNotificationSchedule, getZaloChannel } from "@/lib/settings";
 import { createClient } from "@/lib/supabase/server";
 import { NotificationForm } from "./notification-form";
 import { ProfileForm } from "./profile-form";
@@ -24,10 +24,10 @@ export default async function ProfilePage() {
   const supabase = await createClient();
   const { data: settings } = await supabase
     .from("notification_settings")
-    .select("daily_summary_enabled, deadline_reminder_enabled, remind_before_minutes, overdue_alert_enabled, end_of_day_summary_enabled")
+    .select("daily_summary_enabled, deadline_reminder_enabled, overdue_alert_enabled, end_of_day_summary_enabled")
     .eq("user_id", me.id)
     .maybeSingle();
-  const [zalo, summaryTimes] = await Promise.all([getZaloChannel(), getSummaryTimes()]);
+  const [zalo, schedule] = await Promise.all([getZaloChannel(), getNotificationSchedule()]);
 
   return (
     <>
@@ -68,7 +68,13 @@ export default async function ProfilePage() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <NotificationForm settings={settings} masterEnabled={me.notification_enabled} morningTime={summaryTimes.morning} />
+                <NotificationForm
+                  settings={settings}
+                  masterEnabled={me.notification_enabled}
+                  morningTime={schedule.morning}
+                  endOfDayTime={schedule.endOfDay}
+                  deadlineReminder={schedule.deadlineReminder}
+                />
               </CardContent>
             </Card>
           )}
@@ -95,7 +101,7 @@ export default async function ProfilePage() {
           </Card>
 
           <form action={logout}>
-            <Button type="submit" variant="destructive" size="lg" className="h-11 w-full">
+            <Button type="submit" variant="outline" size="lg" className="h-11 w-full">
               <LogOut />
               Đăng xuất
             </Button>

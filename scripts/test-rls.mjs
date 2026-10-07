@@ -311,9 +311,9 @@ async function signIn(email) {
     .from("notification_settings").update({ daily_summary_enabled: false }).eq("user_id", BINH).select();
   check("employee cannot change another member's notification settings", (otherSettings ?? []).length === 0, otherSettings);
   const { data: ownSettings, error: ownSettingsErr } = await an
-    .from("notification_settings").update({ remind_before_minutes: 45 }).eq("user_id", AN).select("remind_before_minutes");
-  check("employee updates own notification settings", ownSettings?.[0]?.remind_before_minutes === 45, ownSettingsErr);
-  await an.from("notification_settings").update({ remind_before_minutes: 30 }).eq("user_id", AN);
+    .from("notification_settings").update({ overdue_alert_enabled: false }).eq("user_id", AN).select("overdue_alert_enabled");
+  check("employee updates own notification settings", ownSettings?.[0]?.overdue_alert_enabled === false, ownSettingsErr);
+  await an.from("notification_settings").update({ overdue_alert_enabled: true }).eq("user_id", AN);
   const { data: allSettings } = await admin.from("notification_settings").select("user_id");
   check("admin reads all notification settings", allSettings?.length === 5, allSettings?.length);
 

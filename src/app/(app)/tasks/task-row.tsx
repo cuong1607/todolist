@@ -51,7 +51,6 @@ export function TaskRow({ task, status, day, now, onOpen }: Props) {
       className={cn(
         "flex min-h-14 w-full items-start gap-3 rounded-xl border bg-surface px-3 py-3 text-left shadow-card outline-none transition-colors duration-200 hover:bg-muted/60 focus-visible:ring-3 focus-visible:ring-ring/50",
         done && "bg-muted/40 shadow-none",
-        late && "border-danger/30",
       )}
     >
       <span

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireAdmin } from "@/lib/auth";
+import { isDeadlineReminderMinutes } from "@/lib/notifications";
 import { createClient } from "@/lib/supabase/server";
 
 const teamSchema = z.object({
@@ -10,11 +11,17 @@ const teamSchema = z.object({
 });
 
 const time = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Giờ không hợp lệ");
-const summaryTimesSchema = z.object({ morning_summary_time: time, end_of_day_summary_time: time, admin_daily_summary_time: time });
+const summaryTimesSchema = z.object({
+  morning_summary_time: time,
+  end_of_day_summary_time: time,
+  admin_daily_summary_time: time,
+  admin_daily_summary_enabled: z.boolean(),
+  deadline_reminder_minutes: z.coerce.number().refine(isDeadlineReminderMinutes, "Thời gian nhắc không hợp lệ"),
+});
 
 export type SettingsFormState = { ok?: boolean; error?: string };
 
-/** When the scheduler sends the daily summaries (read by the private.schedule_* functions). */
+/** The team's notification schedule (read back by private.notification_schedule(), which every scheduler uses). */
 export async function updateSummaryTimes(_prev: SettingsFormState, formData: FormData): Promise<SettingsFormState> {
   await requireAdmin();
 
@@ -22,6 +29,8 @@ export async function updateSummaryTimes(_prev: SettingsFormState, formData: For
     morning_summary_time: formData.get("morning_summary_time"),
     end_of_day_summary_time: formData.get("end_of_day_summary_time"),
     admin_daily_summary_time: formData.get("admin_daily_summary_time"),
+    admin_daily_summary_enabled: formData.get("admin_daily_summary_enabled") === "on",
+    deadline_reminder_minutes: formData.get("deadline_reminder_minutes"),
   });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message };
 
@@ -32,7 +41,7 @@ export async function updateSummaryTimes(_prev: SettingsFormState, formData: For
   if (error) return { error: "Không lưu được. Thử lại sau." };
 
   revalidatePath("/settings");
-  // Members see the morning time next to their on/off switch.
+  // Members see the morning time and the reminder lead time next to their on/off switches.
   revalidatePath("/profile");
   return { ok: true };
 }

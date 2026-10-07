@@ -4,7 +4,7 @@ import type { Transition, Variants } from "motion/react";
 export const duration = {
   fast: 0.12,
   normal: 0.2,
-  slow: 0.32,
+  slow: 0.28,
 } as const;
 
 export const ease = {

@@ -209,7 +209,7 @@ try {
   check("month navigation works", (await page.locator("button[aria-current=date]").count()) === 0);
 
   // ---------- notification engine: a task due soon → reminder shows up in the in-app inbox ----------
-  // Deadline in 20 minutes is inside the default 30-minute reminder window, so the per-minute
+  // Deadline in 20 minutes is inside the default 60-minute reminder window, so the per-minute
   // scheduler should queue and deliver it on its next tick.
   const dueSoon = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Bangkok", hour: "2-digit", minute: "2-digit", hour12: false }).format(
     new Date(Date.now() + 20 * 60_000),
@@ -247,18 +247,14 @@ try {
   await page.getByText("Đã lưu hồ sơ").waitFor();
   check("employee can save own profile", true);
 
-  await page.getByLabel("Nhắc trước", { exact: true }).selectOption("60");
+  check("the member's settings show the team's reminder lead time (60 minutes by default)", await page.getByText("Trước 60 phút, cho việc phát sinh có giờ hạn").isVisible());
+  check("…and the team's end-of-day summary time (18:00 by default)", await page.getByText("Một tin lúc 18:00: việc đã xong, còn tồn, quá hạn").isVisible());
   await page.getByRole("switch", { name: "Báo việc quá hạn" }).click();
   await page.getByRole("button", { name: "Lưu thông báo" }).click();
   await page.getByText("Đã lưu cài đặt thông báo").waitFor();
   await page.reload();
-  check(
-    "notification settings persist",
-    (await page.getByLabel("Nhắc trước", { exact: true }).inputValue()) === "60" &&
-      (await page.getByRole("switch", { name: "Báo việc quá hạn" }).getAttribute("aria-checked")) === "false",
-  );
+  check("notification settings persist", (await page.getByRole("switch", { name: "Báo việc quá hạn" }).getAttribute("aria-checked")) === "false");
   // Restore the defaults so re-runs and the RLS checks start from the seed state.
-  await page.getByLabel("Nhắc trước", { exact: true }).selectOption("30");
   await page.getByRole("switch", { name: "Báo việc quá hạn" }).click();
   await page.getByRole("button", { name: "Lưu thông báo" }).click();
   await page.getByText("Đã lưu cài đặt thông báo").waitFor();
@@ -426,19 +422,38 @@ try {
   await page.getByRole("link", { name: "Team Todo" }).first().waitFor();
 
   // ---------- admin: notification times + log ----------
-  await page.getByLabel("Tổng kết team").fill("18:15");
-  await page.getByRole("button", { name: "Lưu giờ gửi" }).click();
-  await page.getByText("Đã lưu giờ gửi").waitFor();
+  const adminSummarySwitch = page.getByRole("switch", { name: "Gửi tổng kết team" });
+  check(
+    "notification schedule defaults: admin summary on at 18:10, reminder 60 minutes, Asia/Bangkok",
+    (await page.getByLabel("Giờ gửi tổng kết team").inputValue()) === "18:10" &&
+      (await adminSummarySwitch.getAttribute("aria-checked")) === "true" &&
+      (await page.getByLabel("Nhắc trước deadline").inputValue()) === "60" &&
+      (await page.getByText("Asia/Bangkok").isVisible()),
+  );
+  await page.getByLabel("Giờ gửi tổng kết team").fill("18:25");
+  await adminSummarySwitch.click();
+  await page.getByLabel("Nhắc trước deadline").selectOption("120");
+  await page.getByRole("button", { name: "Lưu thông báo" }).click();
+  await page.getByText("Đã lưu cài đặt thông báo").waitFor();
   await page.reload();
-  check("admin sets when the daily summaries go out", (await page.getByLabel("Tổng kết team").inputValue()) === "18:15");
-  await page.getByLabel("Tổng kết team").fill("18:00");
+  check("admin sets when the daily summaries go out", (await page.getByLabel("Giờ gửi tổng kết team").inputValue()) === "18:25");
+  check("admin can switch the team summary off", (await adminSummarySwitch.getAttribute("aria-checked")) === "false");
+  check(
+    "admin sets the deadline reminder lead time (Tắt / 30 / 60 / 120 phút)",
+    (await page.getByLabel("Nhắc trước deadline").inputValue()) === "120" &&
+      (await page.getByLabel("Nhắc trước deadline").locator("option").allInnerTexts()).join("|") === "Tắt|30 phút|60 phút|120 phút",
+  );
+  await adminSummarySwitch.click();
 
   // ---------- morning summary: admin moves it to "now" → each member gets ONE message with their own numbers ----------
   check("morning summary defaults to 08:00", (await page.getByLabel("Tóm tắt buổi sáng").inputValue()) === "08:00");
+  check("end-of-day summary defaults to 18:00", (await page.getByLabel("Tổng kết cuối ngày").inputValue()) === "18:00");
   const nowHHMM = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Bangkok", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date());
   await page.getByLabel("Tóm tắt buổi sáng").fill(nowHHMM);
-  await page.getByRole("button", { name: "Lưu giờ gửi" }).click();
-  await page.getByText("Đã lưu giờ gửi").waitFor();
+  // …and the team summary too: the admin gets ONE short message about the whole team.
+  await page.getByLabel("Giờ gửi tổng kết team").fill(nowHHMM);
+  await page.getByRole("button", { name: "Lưu thông báo" }).click();
+  await page.getByText("Đã lưu cài đặt thông báo").waitFor();
 
   const inboxOf = async (email) => {
     const memberPage = await (await browser.newContext({ viewport: { width: 390, height: 844 } })).newPage();
@@ -463,6 +478,7 @@ try {
     await anInbox.goto(`${BASE}/profile`);
     return anInbox.getByText(`Một tin mỗi sáng lúc ${nowHHMM}`).isVisible();
   })());
+  check("…and the team's new reminder lead time", await anInbox.getByText("Trước 120 phút, cho việc phát sinh có giờ hạn").isVisible());
   await anInbox.context().close();
 
   const binhInbox = await inboxOf("binh@team.local");
@@ -470,9 +486,30 @@ try {
   check("Bình's summary carries Bình's numbers, not An's (no ad-hoc tasks)", /Cố định: [1-3]\nĐến hạn hôm nay: 0\nQuá hạn: 0/.test(binhSummary), binhSummary);
   await binhInbox.context().close();
 
+  const adminInbox = await page.context().newPage();
+  await adminInbox.goto(`${BASE}/notifications`);
+  const teamCard = () => adminInbox.getByRole("listitem").filter({ hasText: "Tổng kết team hôm nay" });
+  for (let attempt = 0; attempt < 20 && (await teamCard().count()) === 0; attempt++) {
+    await adminInbox.waitForTimeout(5000);
+    await adminInbox.reload();
+  }
+  const teamSummary = (await teamCard().allInnerTexts()).join("\n---\n");
+  check(
+    "admin gets exactly one team summary: team totals, then completed/total per member",
+    (await teamCard().count()) === 1 &&
+      /Tổng \d+ · Xong \d+ · Còn \d+ · Quá hạn \d+\n/.test(teamSummary) &&
+      /\nNguyễn Văn An \d+\/\d+/.test(teamSummary),
+    teamSummary,
+  );
+  check("admin's inbox has none of the members' personal reminders", (await adminInbox.getByText("E2E nhắc hạn").count()) === 0);
+  if (SHOTS) await adminInbox.screenshot({ path: `${SHOTS}/e2e-admin-team-summary.png`, fullPage: true });
+  await adminInbox.close();
+
   await page.getByLabel("Tóm tắt buổi sáng").fill("08:00");
-  await page.getByRole("button", { name: "Lưu giờ gửi" }).click();
-  await page.getByText("Đã lưu giờ gửi").waitFor();
+  await page.getByLabel("Giờ gửi tổng kết team").fill("18:10");
+  await page.getByLabel("Nhắc trước deadline").selectOption("60");
+  await page.getByRole("button", { name: "Lưu thông báo" }).click();
+  await page.getByText("Đã lưu cài đặt thông báo").waitFor();
 
   await page.getByRole("link", { name: /Nhật ký gửi thông báo/ }).click();
   await page.waitForURL("**/settings/notifications");
@@ -488,7 +525,9 @@ try {
   await logout(page);
   await login(page, "binh@team.local");
   await page.waitForURL("**/today");
-  check("new template appears in the employee's today list immediately", await page.getByText("E2E việc cố định").isVisible());
+  // The URL changes as soon as the skeleton shows; wait for the list itself.
+  const appears = (text) => page.getByText(text).waitFor({ timeout: 5000 }).then(() => true, () => false);
+  check("new template appears in the employee's today list immediately", await appears("E2E việc cố định"));
 
   await logout(page);
   await login(page, "admin@team.local");
@@ -502,7 +541,7 @@ try {
   await logout(page);
   await login(page, "binh@team.local");
   await page.waitForURL("**/today");
-  check("disabling keeps today's already-generated task (history)", await page.getByText("E2E việc cố định").isVisible());
+  check("disabling keeps today's already-generated task (history)", await appears("E2E việc cố định"));
 
   await logout(page);
   await login(page, email, "TempPass123");

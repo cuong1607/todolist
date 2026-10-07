@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Clock, Loader2, Repeat, Zap } from "lucide-react";
+import { Clock, Repeat, Zap } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { deriveStatus } from "@/lib/task-status";
 import { formatDay, formatDeadline, formatTimeLocal, localDateOf } from "@/lib/time";
@@ -23,7 +24,7 @@ type Props = {
 export function TaskDetailDialog({ open, task, onOpenChange, employeeNoteLabel = "Ghi chú của bạn" }: Props) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-md">
+      <DialogContent variant="sheet">
         {task && <Detail key={task.id} task={task} employeeNoteLabel={employeeNoteLabel} />}
       </DialogContent>
     </Dialog>
@@ -119,10 +120,17 @@ function Timeline({ taskId }: { taskId: string }) {
         Lịch sử
       </h3>
       {result === null ? (
-        <p className="flex items-center gap-2 text-caption text-muted-foreground">
-          <Loader2 className="size-4 animate-spin" />
-          Đang tải…
-        </p>
+        <div role="status" aria-label="Đang tải lịch sử" className="space-y-3">
+          {[0, 1].map((i) => (
+            <div key={i} className="flex gap-3">
+              <Skeleton className="mt-1.5 size-2 rounded-full" />
+              <div className="flex-1 space-y-1.5">
+                <Skeleton className="h-4 w-32" />
+                <Skeleton className="h-3 w-20" />
+              </div>
+            </div>
+          ))}
+        </div>
       ) : !result.ok ? (
         <p role="alert" className="text-caption text-danger">
           {result.error}

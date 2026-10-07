@@ -66,7 +66,7 @@ export function MemberSheet({ member, rangeLabel, tasks, closeHref }: Props) {
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-h-[90dvh] content-start overflow-y-auto sm:top-0 sm:right-0 sm:left-auto sm:h-dvh sm:max-h-dvh sm:max-w-md sm:translate-x-0 sm:translate-y-0 sm:rounded-none sm:rounded-l-2xl sm:p-6 sm:data-open:zoom-in-100 sm:data-open:slide-in-from-right-8 sm:data-closed:zoom-out-100 sm:data-closed:slide-out-to-right-8">
+        <DialogContent variant="sheet">
           <DialogHeader className="flex-row items-center gap-3 pr-8">
             <UserAvatar name={member.name} src={member.avatarUrl} size="lg" className="size-11" />
             <div className="min-w-0 space-y-1">

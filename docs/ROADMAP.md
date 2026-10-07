@@ -193,3 +193,60 @@ Hướng dẫn thiết lập với OA thật: [docs/ZALO.md](ZALO.md).
 - [x] Test: `test:db` (148), `test:e2e` (80 — có kiểm tra thật: dời giờ về hiện tại, An và Bình mỗi người nhận một tin với số của riêng mình)
 - Khác spec: không dùng Edge Function. Năm bước của spec (lấy user → đếm việc theo từng user → dựng nội dung → ghi `notification_logs` → gửi Zalo) chạy trong scheduler SQL sẵn có (pg_cron mỗi phút) và worker Zalo của Phase 10, để chỉ có một engine và một nơi deploy
 - [ ] Đẩy migration `20261005021833_morning_summary` lên cloud rồi deploy
+
+## Phase 12. Deadline Reminder
+
+- [x] Một thời gian nhắc chung cho cả team, admin chọn ở Cài đặt → Thông báo: Tắt · 30 phút · 60 phút · 120 phút (`system_settings.deadline_reminder_minutes`, mặc định 30). Bỏ lựa chọn riêng của từng người (Phase 9); mỗi người vẫn tự bật/tắt
+- [x] Chỉ nhắc khi: việc phát sinh (ADHOC) · chưa xong · deadline có giờ (deadline chỉ có ngày = 23:59 thì bỏ qua) · chưa nhắc cho deadline đó. Việc cố định không còn được nhắc (Phase 9 có nhắc)
+- [x] Không trùng: khoá `deadline-reminder:<task>:<deadline>`; chạy scheduler bao nhiêu lần cũng chỉ một tin. Đổi thời gian nhắc không gửi lại tin đã gửi
+- [x] Dời deadline → nhắc lại theo deadline mới. Việc đã xong không được nhắc; mở lại khi còn trước hạn thì vẫn nhắc
+- [x] Tin đang chờ gửi (Zalo đang thử lại) bị huỷ ngay khi việc được hoàn thành, bị dời hạn, hoặc admin tắt nhắc
+- [x] Test: `test:db` (172), `test:rls`, `test:e2e` (83)
+- Khác spec: không tạo job 10–15 phút riêng. Dùng luôn `notification-tick` chạy mỗi phút của Phase 9 (`private.schedule_deadline_reminders`), nên tin nhắc trễ tối đa khoảng một phút
+- [ ] Đẩy migration `20261007075322_deadline_reminder` lên cloud rồi deploy
+
+## Phase 13. End of Day Summary 18:00
+
+- [x] Một giờ gửi chung cho cả team, mặc định 18:00 (trước là 17:30), admin đổi ở Cài đặt → Thông báo (`system_settings.end_of_day_summary_time`); mỗi người vẫn tự bật/tắt
+- [x] Mỗi người đúng **một** tin mỗi ngày: "Tổng kết hôm nay" + hai dòng `Cố định: xong x, chưa xong y` · `Phát sinh: xong hôm nay a, đang tồn b, quá hạn c` ("quá hạn" nằm trong "đang tồn", giống báo cáo)
+- [x] Số liệu chỉ lấy từ việc của chính người nhận (`private.end_of_day_counts`); người không có việc nào thì không nhận tin
+- [x] Chỉ là ảnh chụp tại giờ gửi: không khoá việc nào, nhân viên vẫn hoàn thành được sau đó và `completed_at` là thời gian thật; tin đã gửi không bị sửa, không gửi lần hai (khoá `end-of-day-summary:<user>:<ngày>`)
+- [x] Gửi qua ứng dụng và qua Zalo (nếu đã liên kết) với cùng nội dung
+- [x] Test: `test:db` (191), `test:rls`, `test:e2e` (85)
+- Khác spec: việc cố định chưa làm ghi là "chưa xong" thay vì "bỏ lỡ", vì lúc 18:00 nhân viên vẫn còn làm được
+- [ ] Đẩy migration `20261007085322_end_of_day_summary` lên cloud rồi deploy
+
+## Phase 14. Admin Daily Summary
+
+- [x] Mỗi admin đúng **một** tin mỗi ngày: "Tổng kết team hôm nay" — dòng đầu `Tổng 11 · Xong 10 · Còn 1 · Quá hạn 1`, sau đó mỗi thành viên có việc hôm nay một dòng `Tên xong/tổng`
+- [x] Số liệu đếm giống trang Tổng quan (`private.task_in_range` cho hôm nay); cả team không có việc thì không gửi
+- [x] Cài đặt của admin ở Cài đặt → Thông báo: bật/tắt (`admin_daily_summary_enabled`) và giờ gửi (`admin_daily_summary_time`)
+- [x] Admin không nhận thông báo cá nhân của nhân viên: mọi tin theo từng việc chỉ gửi cho người được giao (có test)
+- [x] Test: `test:db` (223), `test:e2e` (89 — có kiểm tra thật: dời giờ về hiện tại, admin nhận đúng một tin)
+- Khác spec: giờ mặc định là 18:10 chứ không phải 17:35–17:40, vì tổng kết của nhân viên đã chuyển sang 18:00 ở Phase 13 và spec muốn tin của admin đi sau
+- [ ] Đẩy migration `20261007091734_admin_daily_summary` lên cloud rồi deploy
+
+## Phase 15. Notification Settings
+
+- [x] Một nơi duy nhất giữ lịch và giá trị mặc định: `private.notification_schedule()`. Mọi scheduler đọc từ đây; ứng dụng đọc cùng hàm đó qua RPC `notification_schedule()` — không còn giờ mặc định nào nằm rải rác trong SQL hay TypeScript
+- [x] Mặc định: múi giờ Asia/Bangkok · buổi sáng 08:00 · cuối ngày 18:00 · tổng kết team bật, 18:10 · nhắc deadline 60 phút (trước là 30)
+- [x] Admin đổi ở Cài đặt → Thông báo; scheduler chạy mỗi phút nên có hiệu lực ngay. Giá trị thiếu hoặc sai định dạng thì dùng mặc định, job không bao giờ dừng vì một giá trị hỏng
+- [x] Test: `test:db` (223 — đổi từng giá trị rồi kiểm tra scheduler chạy theo), `test:e2e` (89)
+- Khác spec:
+  - Giữ tên khoá đang dùng: `end_of_day_summary_time` (spec: `end_of_day_time`), `admin_daily_summary_time` (`admin_summary_time`), `zalo_enabled` (`zalo_notifications_enabled`)
+  - `timezone` chỉ hiển thị, không sửa được: `task_date`, job sinh việc cố định 00:05 và ứng dụng đều dựa trên một múi giờ cố định; đổi múi giờ khi đã có dữ liệu sẽ làm việc nhảy sang ngày khác
+  - Chưa có `workday_start`: chưa có quy tắc nào dùng tới nó
+- [ ] Đẩy migration `20261007091737_notification_settings` lên cloud rồi deploy
+
+## Phase 16. UI/UX Polish
+
+Không thêm tính năng nghiệp vụ, không đổi database.
+
+- [x] Optimistic UI cho cả năm thao tác: hoàn thành · mở lại (đã có) · tạo việc · sửa ghi chú · dời deadline. Sheet đóng ngay, danh sách đổi ngay, server xác nhận sau; lỗi thì hoàn tác và báo kèm nút "Thử lại"
+- [x] Loading: skeleton cho mọi trang khi chuyển tab (khung ứng dụng vẫn đứng yên), skeleton cho lịch sử trong chi tiết việc; không còn chỗ nào chờ trắng hay spinner toàn màn hình. Thẻ nhân viên và bộ lọc ở Tổng quan có trạng thái chờ riêng
+- [x] Sheet thay modal: chi tiết việc (Hôm nay, Lịch sử, Lịch, Tổng quan) mở dạng side sheet trên desktop, bottom sheet trên mobile. Chỉ form "Thêm việc" còn là hộp thoại giữa màn hình trên desktop
+- [x] Màu: primary chuyển từ xanh ngả tím sang xanh dương; đỏ chỉ còn ở số/nhãn quá hạn và lỗi — bỏ viền đỏ của thẻ việc, thẻ nhân viên và ô "Quá hạn" ở Tổng quan; nút Đăng xuất không còn màu đỏ
+- [x] Animation: fast 120ms · normal 200ms · slow 280ms (trước là 320ms)
+- [x] Empty state: xong hết việc trong ngày thì hiện "Bạn đã hoàn thành toàn bộ công việc hôm nay."
+- [x] Test: `test:ux` (17, mới — làm chậm mạng 1,5 giây để đo phản hồi tức thì), `test:e2e` (89)
+- [ ] Deploy

@@ -1,15 +1,13 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
-import { Loader2, Plus } from "lucide-react";
-import { toast } from "sonner";
+import { useState } from "react";
+import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { addDays, formatDay, fromDeadlineISO, todayLocal } from "@/lib/time";
 import { cn } from "@/lib/utils";
-import { createAdhocTask, updateAdhocTask, type AdhocFormState } from "./adhoc-actions";
 import type { TodayTask } from "./task-types";
 
 type Props = {
@@ -17,14 +15,18 @@ type Props = {
   onOpenChange: (open: boolean) => void;
   /** null = quick create */
   task: TodayTask | null;
-  /** Receives the saved row so the list updates without a page re-render. */
-  onSaved: (task: TodayTask) => void;
+  /** What the user entered. The sheet closes at once; the list applies it optimistically and saves. */
+  onSubmit: (values: AdhocValues, task: TodayTask | null) => void;
 };
 
-export function AdhocDialog({ open, onOpenChange, task, onSaved }: Props) {
+/** `dueDate` is YYYY-MM-DD or "" (no deadline); `dueTime` is HH:MM or "" (by end of day). */
+export type AdhocValues = { title: string; note: string; dueDate: string; dueTime: string };
+
+export function AdhocDialog({ open, onOpenChange, task, onSubmit }: Props) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-md">
+      {/* Quick create is a short form; an existing task opens as a detail sheet. */}
+      <DialogContent variant={task ? "sheet" : "dialog"} className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{task ? "Sửa công việc" : "Thêm việc phát sinh"}</DialogTitle>
           <DialogDescription>{task ? "Đổi tên, dời deadline hoặc cập nhật ghi chú." : "Chỉ cần tên việc — deadline và ghi chú tuỳ chọn."}</DialogDescription>
@@ -33,8 +35,8 @@ export function AdhocDialog({ open, onOpenChange, task, onSaved }: Props) {
         <AdhocForm
           key={`${task?.id ?? "new"}-${open}`}
           task={task}
-          onDone={(saved) => {
-            onSaved(saved);
+          onSubmit={(values) => {
+            onSubmit(values, task);
             onOpenChange(false);
           }}
         />
@@ -53,23 +55,12 @@ function initialDue(task: TodayTask | null): { mode: DueMode; date: string; time
   return { mode, date, time };
 }
 
-function AdhocForm({ task, onDone }: { task: TodayTask | null; onDone: (saved: TodayTask) => void }) {
-  const [state, action, pending] = useActionState<AdhocFormState, FormData>(task ? updateAdhocTask : createAdhocTask, {});
+function AdhocForm({ task, onSubmit }: { task: TodayTask | null; onSubmit: (values: AdhocValues) => void }) {
   const init = initialDue(task);
   const [mode, setMode] = useState<DueMode>(init.mode);
   const [pickedDate, setPickedDate] = useState(init.date);
   const [time, setTime] = useState(init.time);
   const [showNote, setShowNote] = useState(!!task?.note);
-
-  // Handle each successful save exactly once (onDone is a new function every render).
-  const handled = useRef<number | undefined>(undefined);
-  useEffect(() => {
-    if (state.ok && state.task && state.nonce !== handled.current) {
-      handled.current = state.nonce;
-      toast.success(task ? "Đã lưu" : "Đã thêm việc");
-      onDone(state.task);
-    }
-  }, [state, task, onDone]);
 
   const today = todayLocal();
   const dueDate = mode === "none" ? "" : mode === "today" ? today : mode === "tomorrow" ? addDays(today, 1) : pickedDate;
@@ -82,15 +73,16 @@ function AdhocForm({ task, onDone }: { task: TodayTask | null; onDone: (saved: T
   ];
 
   return (
-    <form action={action} className="space-y-5">
-      {state.error && (
-        <p role="alert" className="rounded-lg bg-danger-soft px-3 py-2.5 text-caption text-danger-soft-foreground">
-          {state.error}
-        </p>
-      )}
-      {task && <input type="hidden" name="id" value={task.id} />}
-      <input type="hidden" name="due_date" value={dueDate} />
-      <input type="hidden" name="due_time" value={mode === "none" ? "" : time} />
+    <form
+      className="space-y-5"
+      onSubmit={(event) => {
+        event.preventDefault();
+        const data = new FormData(event.currentTarget);
+        const title = String(data.get("title") ?? "").trim();
+        if (!title) return;
+        onSubmit({ title, note: String(data.get("note") ?? "").trim(), dueDate, dueTime: mode === "none" ? "" : time });
+      }}
+    >
 
       <div className="space-y-2">
         <Label htmlFor="a-title">Tên công việc</Label>
@@ -175,8 +167,7 @@ function AdhocForm({ task, onDone }: { task: TodayTask | null; onDone: (saved: T
         </button>
       )}
 
-      <Button type="submit" size="lg" disabled={pending} className="h-11 w-full">
-        {pending && <Loader2 className="animate-spin" />}
+      <Button type="submit" size="lg" className="h-11 w-full">
         {task ? "Lưu thay đổi" : "Thêm việc"}
       </Button>
     </form>

@@ -43,9 +43,16 @@ function DialogContent({
   className,
   children,
   showCloseButton = true,
+  variant = "dialog",
   ...props
 }: DialogPrimitive.Popup.Props & {
   showCloseButton?: boolean
+  /**
+   * `dialog` — short forms and confirmations: centered from `sm`.
+   * `sheet` — details you read while the page stays in view: a side sheet from `sm`.
+   * Both are a bottom sheet below `sm`.
+   */
+  variant?: "dialog" | "sheet"
 }) {
   return (
     <DialogPortal>
@@ -53,9 +60,11 @@ function DialogContent({
       <DialogPrimitive.Popup
         data-slot="dialog-content"
         className={cn(
-          // Mobile: bottom sheet in the thumb zone. sm+: centered dialog.
-          "fixed inset-x-0 bottom-0 z-50 grid w-full gap-4 rounded-t-2xl bg-popover p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] text-sm text-popover-foreground ring-1 ring-foreground/10 duration-200 outline-none data-open:animate-in data-open:slide-in-from-bottom data-closed:animate-out data-closed:slide-out-to-bottom",
-          "sm:inset-x-auto sm:top-1/2 sm:bottom-auto sm:left-1/2 sm:max-w-sm sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-xl sm:pb-4 sm:duration-150 sm:data-open:fade-in-0 sm:data-open:zoom-in-95 sm:data-open:slide-in-from-bottom-0 sm:data-closed:fade-out-0 sm:data-closed:zoom-out-95 sm:data-closed:slide-out-to-bottom-0",
+          // Mobile: bottom sheet in the thumb zone.
+          "fixed inset-x-0 bottom-0 z-50 grid max-h-[90dvh] w-full gap-4 overflow-y-auto rounded-t-2xl bg-popover p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] text-sm text-popover-foreground shadow-overlay ring-1 ring-foreground/10 duration-200 ease-out-soft outline-none data-open:animate-in data-open:slide-in-from-bottom data-closed:animate-out data-closed:slide-out-to-bottom",
+          variant === "dialog"
+            ? "sm:inset-x-auto sm:top-1/2 sm:bottom-auto sm:left-1/2 sm:max-w-sm sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-xl sm:pb-4 sm:duration-150 sm:data-open:fade-in-0 sm:data-open:zoom-in-95 sm:data-open:slide-in-from-bottom-0 sm:data-closed:fade-out-0 sm:data-closed:zoom-out-95 sm:data-closed:slide-out-to-bottom-0"
+            : "content-start sm:inset-x-auto sm:top-0 sm:right-0 sm:bottom-0 sm:h-dvh sm:max-h-dvh sm:max-w-md sm:rounded-none sm:rounded-l-2xl sm:p-6 sm:data-open:fade-in-0 sm:data-open:slide-in-from-bottom-0 sm:data-open:slide-in-from-right-8 sm:data-closed:fade-out-0 sm:data-closed:slide-out-to-bottom-0 sm:data-closed:slide-out-to-right-8",
           className
         )}
         {...props}
@@ -75,7 +84,7 @@ function DialogContent({
           >
             <XIcon
             />
-            <span className="sr-only">Close</span>
+            <span className="sr-only">Đóng</span>
           </DialogPrimitive.Close>
         )}
       </DialogPrimitive.Popup>

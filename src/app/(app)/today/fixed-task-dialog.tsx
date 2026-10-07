@@ -1,13 +1,11 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { Check, Clock, Loader2, Repeat, RotateCcw } from "lucide-react";
-import { toast } from "sonner";
+import { useState } from "react";
+import { Check, Clock, Repeat, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { formatTimeLocal } from "@/lib/time";
-import { saveTaskNote } from "./actions";
 import type { TodayTask } from "./task-types";
 
 type Props = {
@@ -15,14 +13,15 @@ type Props = {
   task: TodayTask | null;
   onOpenChange: (open: boolean) => void;
   onToggle: (task: TodayTask) => void;
-  onSaved: (task: TodayTask) => void;
+  /** The list shows the note as saved at once and stores it in the background. */
+  onSaveNote: (task: TodayTask, note: string) => void;
 };
 
 /** Detail sheet for a fixed task: instructions, optional employee note, complete/reopen. Read-only otherwise. */
-export function FixedTaskDialog({ open, task, onOpenChange, onToggle, onSaved }: Props) {
+export function FixedTaskDialog({ open, task, onOpenChange, onToggle, onSaveNote }: Props) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-md">
+      <DialogContent variant="sheet">
         {task && (
           <>
             <DialogHeader>
@@ -49,7 +48,7 @@ export function FixedTaskDialog({ open, task, onOpenChange, onToggle, onSaved }:
             )}
 
             {task.allow_employee_note && (
-              <NoteForm key={task.id} task={task} onSaved={onSaved} />
+              <NoteForm key={task.id} task={task} onSaveNote={onSaveNote} />
             )}
 
             <Button
@@ -71,20 +70,10 @@ export function FixedTaskDialog({ open, task, onOpenChange, onToggle, onSaved }:
   );
 }
 
-function NoteForm({ task, onSaved }: { task: TodayTask; onSaved: (task: TodayTask) => void }) {
+function NoteForm({ task, onSaveNote }: { task: TodayTask; onSaveNote: (task: TodayTask, note: string) => void }) {
   const [value, setValue] = useState(task.employee_note ?? "");
-  const [saving, startSaving] = useTransition();
+  // `task` already carries the optimistic note, so the button settles the moment it is pressed.
   const dirty = value.trim() !== (task.employee_note ?? "");
-
-  function save() {
-    startSaving(async () => {
-      const result = await saveTaskNote(task.id, value);
-      if (result.ok) {
-        onSaved(result.task);
-        toast.success("Đã lưu ghi chú");
-      } else toast.error(result.error);
-    });
-  }
 
   return (
     <div className="space-y-2">
@@ -99,8 +88,7 @@ function NoteForm({ task, onSaved }: { task: TodayTask; onSaved: (task: TodayTas
         className="w-full rounded-lg border border-input bg-transparent px-3 py-2.5 text-base outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
       />
       <div className="flex justify-end">
-        <Button variant="secondary" size="lg" onClick={save} disabled={saving || !dirty}>
-          {saving && <Loader2 className="animate-spin" />}
+        <Button variant="secondary" size="lg" onClick={() => onSaveNote(task, value.trim())} disabled={!dirty}>
           Lưu ghi chú
         </Button>
       </div>
