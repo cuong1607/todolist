@@ -23,11 +23,13 @@ type Props = {
   /** The day this row is listed under; times on other days get a day label. */
   day: string;
   now: Date;
+  /** Who the row is about when it is not simply "mine": "→ Bình", "Giao bởi: An". */
+  person?: string | null;
   onOpen: () => void;
 };
 
 /** Read-only row for history and calendar. Ticking happens on the Today screen. */
-export function TaskRow({ task, status, day, now, onOpen }: Props) {
+export function TaskRow({ task, status, day, now, person, onOpen }: Props) {
   const done = status === "COMPLETED";
   const late = status === "OVERDUE";
 
@@ -71,6 +73,7 @@ export function TaskRow({ task, status, day, now, onOpen }: Props) {
               Cố định
             </span>
           )}
+          {person && <span className="text-muted-foreground">{person}</span>}
           {meta.length > 0 && (
             <span className="flex items-center gap-1">
               <Clock className="size-3.5 shrink-0" />

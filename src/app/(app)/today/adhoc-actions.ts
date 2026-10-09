@@ -39,12 +39,16 @@ export async function createAdhocTask(_prev: AdhocFormState, formData: FormData)
   const parsed = parse(formData);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message };
 
-  // No assignee_id / task_date / created_by here: the DB fills them from the session
-  // and the insert guard rejects anything else.
+  // "" = for myself: assignee_id is then left to the DB default (the session user).
+  const assignee = z.union([z.literal(""), z.uuid()]).safeParse(formData.get("assignee_id") ?? "");
+  if (!assignee.success) return { error: "Người nhận không hợp lệ" };
+
+  // No task_date / created_by here: the DB fills them from the session. The insert guard
+  // checks that another assignee is an active member and rejects anything else.
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("tasks")
-    .insert({ type: "ADHOC", ...parsed.data })
+    .insert({ type: "ADHOC", ...parsed.data, ...(assignee.data ? { assignee_id: assignee.data } : {}) })
     .select(TODAY_TASK_COLUMNS)
     .single();
   if (error) return { error: error.code === "42501" ? error.message : "Không tạo được. Thử lại sau." };

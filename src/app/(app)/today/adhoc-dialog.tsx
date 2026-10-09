@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { addDays, formatDay, fromDeadlineISO, todayLocal } from "@/lib/time";
 import { cn } from "@/lib/utils";
+import { TransferTask } from "../tasks/transfer-task";
 import type { TodayTask } from "./task-types";
 
 type Props = {
@@ -17,12 +18,21 @@ type Props = {
   task: TodayTask | null;
   /** What the user entered. The sheet closes at once; the list applies it optimistically and saves. */
   onSubmit: (values: AdhocValues, task: TodayTask | null) => void;
+  /** Active teammates a new task can be handed to (the current user excluded). */
+  assignees: { id: string; full_name: string }[];
+  /** Name of whoever handed `task` to the current user, if someone else did. */
+  assignedBy?: string | null;
+  /** Hand an open task to one of `assignees`. Like `onSubmit`, the sheet closes at once. */
+  onTransfer?: (task: TodayTask, toId: string) => void;
 };
 
-/** `dueDate` is YYYY-MM-DD or "" (no deadline); `dueTime` is HH:MM or "" (by end of day). */
-export type AdhocValues = { title: string; note: string; dueDate: string; dueTime: string };
+/**
+ * `dueDate` is YYYY-MM-DD or "" (no deadline); `dueTime` is HH:MM or "" (by end of day).
+ * `assigneeId` is "" for myself; it only applies when creating.
+ */
+export type AdhocValues = { title: string; note: string; dueDate: string; dueTime: string; assigneeId: string };
 
-export function AdhocDialog({ open, onOpenChange, task, onSubmit }: Props) {
+export function AdhocDialog({ open, onOpenChange, task, onSubmit, assignees, assignedBy, onTransfer }: Props) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       {/* Quick create is a short form; an existing task opens as a detail sheet. */}
@@ -30,11 +40,23 @@ export function AdhocDialog({ open, onOpenChange, task, onSubmit }: Props) {
         <DialogHeader>
           <DialogTitle>{task ? "Sửa công việc" : "Thêm việc phát sinh"}</DialogTitle>
           <DialogDescription>{task ? "Đổi tên, dời deadline hoặc cập nhật ghi chú." : "Chỉ cần tên việc — deadline và ghi chú tuỳ chọn."}</DialogDescription>
+          {task && assignedBy && <p className="text-caption text-muted-foreground">Giao bởi: {assignedBy}</p>}
         </DialogHeader>
+        {task && !task.completed && onTransfer && (
+          <TransferTask
+            task={task}
+            candidates={assignees}
+            onTransfer={(toId) => {
+              onTransfer(task, toId);
+              onOpenChange(false);
+            }}
+          />
+        )}
         {/* key: fresh form per task / per open */}
         <AdhocForm
           key={`${task?.id ?? "new"}-${open}`}
           task={task}
+          assignees={assignees}
           onSubmit={(values) => {
             onSubmit(values, task);
             onOpenChange(false);
@@ -55,7 +77,9 @@ function initialDue(task: TodayTask | null): { mode: DueMode; date: string; time
   return { mode, date, time };
 }
 
-function AdhocForm({ task, onSubmit }: { task: TodayTask | null; onSubmit: (values: AdhocValues) => void }) {
+type FormProps = { task: TodayTask | null; assignees: Props["assignees"]; onSubmit: (values: AdhocValues) => void };
+
+function AdhocForm({ task, assignees, onSubmit }: FormProps) {
   const init = initialDue(task);
   const [mode, setMode] = useState<DueMode>(init.mode);
   const [pickedDate, setPickedDate] = useState(init.date);
@@ -80,7 +104,13 @@ function AdhocForm({ task, onSubmit }: { task: TodayTask | null; onSubmit: (valu
         const data = new FormData(event.currentTarget);
         const title = String(data.get("title") ?? "").trim();
         if (!title) return;
-        onSubmit({ title, note: String(data.get("note") ?? "").trim(), dueDate, dueTime: mode === "none" ? "" : time });
+        onSubmit({
+          title,
+          note: String(data.get("note") ?? "").trim(),
+          dueDate,
+          dueTime: mode === "none" ? "" : time,
+          assigneeId: String(data.get("assignee_id") ?? ""),
+        });
       }}
     >
 
@@ -97,6 +127,26 @@ function AdhocForm({ task, onSubmit }: { task: TodayTask | null; onSubmit: (valu
           className="h-11 text-base"
         />
       </div>
+
+      {/* Only when creating: handing an existing task to someone else is a transfer, not an edit. */}
+      {!task && assignees.length > 0 && (
+        <div className="space-y-2">
+          <Label htmlFor="a-assignee">Giao cho</Label>
+          <select
+            id="a-assignee"
+            name="assignee_id"
+            defaultValue=""
+            className="h-11 w-full rounded-lg border border-input bg-transparent px-3 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+          >
+            <option value="">Tôi</option>
+            {assignees.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.full_name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <fieldset className="space-y-2">
         <legend className="text-sm font-medium">Deadline</legend>

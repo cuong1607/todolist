@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { UserAvatar } from "@/components/shell/user-avatar";
+import type { TeamMember } from "@/lib/members";
 import { deriveStatus } from "@/lib/task-status";
 import { formatDateLong, formatDay, localDateOf } from "@/lib/time";
 import { TaskDetailDialog } from "../../tasks/task-detail-dialog";
@@ -23,10 +24,13 @@ type Props = {
   tasks: TodayTask[];
   /** The dashboard URL without this member — where closing the sheet goes. */
   closeHref: string;
+  /** The team by name and the admin looking at it: lets a task sheet name people and reassign the task. */
+  team: TeamMember[];
+  viewer: { id: string; isAdmin: boolean };
 };
 
 /** One member's tasks for the selected range, by day. Bottom sheet on mobile, side sheet from `sm`. */
-export function MemberSheet({ member, rangeLabel, tasks, closeHref }: Props) {
+export function MemberSheet({ member, rangeLabel, tasks, closeHref, team, viewer }: Props) {
   const router = useRouter();
   const [now] = useState(() => new Date());
   // Close instantly; the URL (the source of truth for which sheet is open) catches up.
@@ -116,6 +120,8 @@ export function MemberSheet({ member, rangeLabel, tasks, closeHref }: Props) {
         open={detail.open}
         task={detail.task ? (tasks.find((t) => t.id === detail.task!.id) ?? detail.task) : null}
         employeeNoteLabel="Ghi chú của nhân viên"
+        members={team}
+        viewer={viewer}
         onOpenChange={(next) => setDetail((d) => ({ ...d, open: next }))}
       />
     </>

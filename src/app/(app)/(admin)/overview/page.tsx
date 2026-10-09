@@ -24,7 +24,7 @@ type Stats = { fixedTotal: number; fixedDone: number; adhocTotal: number; adhocD
 const NO_STATS: Stats = { fixedTotal: 0, fixedDone: 0, adhocTotal: 0, adhocDone: 0, overdue: 0 };
 
 export default async function OverviewPage({ searchParams }: PageProps<"/overview">) {
-  await requireAdmin();
+  const admin = await requireAdmin();
   const params = await searchParams;
   const today = todayLocal();
   const range = resolveRange(params, today);
@@ -156,6 +156,8 @@ export default async function OverviewPage({ searchParams }: PageProps<"/overvie
           rangeLabel={rangeLabel}
           tasks={memberTasks.data}
           closeHref={overviewHref(range)}
+          team={profiles.map((p) => ({ id: p.id, full_name: p.full_name || p.email, active: p.active }))}
+          viewer={{ id: admin.id, isAdmin: true }}
         />
       )}
     </>

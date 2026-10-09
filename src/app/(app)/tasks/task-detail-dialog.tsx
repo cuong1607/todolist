@@ -1,16 +1,21 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Clock, Repeat, Zap } from "lucide-react";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { deriveStatus } from "@/lib/task-status";
 import { formatDay, formatDeadline, formatTimeLocal, localDateOf } from "@/lib/time";
 import { cn } from "@/lib/utils";
+import type { TeamMember } from "@/lib/members";
+import { transferTask } from "../today/actions";
 import type { TodayTask } from "../today/task-types";
 import { getTaskTimeline, type TimelineEntry, type TimelineResult } from "./actions";
 import { statusLabel } from "./task-row";
+import { canTransfer, TransferTask } from "./transfer-task";
 
 type Props = {
   open: boolean;
@@ -18,27 +23,58 @@ type Props = {
   onOpenChange: (open: boolean) => void;
   /** Heading for the employee's note. Admins viewing a member pass their own wording. */
   employeeNoteLabel?: string;
+  /** The team by name: names the creator and the assignee of an ad-hoc task. */
+  members?: TeamMember[];
+  /** With `members`: adds "Chuyển công việc" to the "…" menu when this viewer may transfer the task. */
+  viewer?: { id: string; isAdmin: boolean };
 };
 
-/** Read-only detail sheet: what the task was, and everything that happened to it. */
-export function TaskDetailDialog({ open, task, onOpenChange, employeeNoteLabel = "Ghi chú của bạn" }: Props) {
+/** Detail sheet: what the task is, who it belongs to, and everything that happened to it. Content is read-only. */
+export function TaskDetailDialog({ open, task, onOpenChange, employeeNoteLabel = "Ghi chú của bạn", members, viewer }: Props) {
+  const router = useRouter();
+
+  /** Close first, then ask the server; the page re-reads its list afterwards. */
+  async function transfer(target: TodayTask, toId: string) {
+    onOpenChange(false);
+    const result = await transferTask(target.id, toId).catch(() => ({ ok: false as const, error: "Không chuyển được công việc" }));
+    if (result.ok) {
+      toast.success(`Đã chuyển cho ${members?.find((m) => m.id === toId)?.full_name ?? "người nhận"}`);
+      router.refresh();
+    } else {
+      toast.error(result.error, { action: { label: "Thử lại", onClick: () => void transfer(target, toId) } });
+    }
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent variant="sheet">
-        {task && <Detail key={task.id} task={task} employeeNoteLabel={employeeNoteLabel} />}
+        {task && (
+          <Detail
+            key={task.id}
+            task={task}
+            employeeNoteLabel={employeeNoteLabel}
+            members={members}
+            viewer={viewer}
+            onTransfer={(toId) => void transfer(task, toId)}
+          />
+        )}
       </DialogContent>
     </Dialog>
   );
 }
 
-function Detail({ task, employeeNoteLabel }: { task: TodayTask; employeeNoteLabel: string }) {
+type DetailProps = Pick<Props, "members" | "viewer"> & { task: TodayTask; employeeNoteLabel: string; onTransfer: (toId: string) => void };
+
+function Detail({ task, employeeNoteLabel, members, viewer, onTransfer }: DetailProps) {
   const now = new Date();
   const status = deriveStatus(task, now);
+  const nameOf = (id: string | null) => members?.find((m) => m.id === id)?.full_name ?? null;
+  const transferable = !!members && !!viewer && canTransfer(task, viewer);
 
   return (
     <>
       <DialogHeader>
-        <DialogTitle className="pr-8 leading-snug">{task.title}</DialogTitle>
+        <DialogTitle className={cn("leading-snug", transferable ? "pr-16" : "pr-8")}>{task.title}</DialogTitle>
         <DialogDescription className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
           <Badge
             className={cn(
@@ -68,6 +104,18 @@ function Detail({ task, employeeNoteLabel }: { task: TodayTask; employeeNoteLabe
           )}
         </DialogDescription>
       </DialogHeader>
+      {transferable && (
+        <TransferTask task={task} candidates={members.filter((m) => m.active && m.id !== task.assignee_id)} onTransfer={onTransfer} />
+      )}
+
+      {task.type === "ADHOC" && members && (
+        <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-caption">
+          <dt className="text-muted-foreground">Người tạo</dt>
+          <dd className="font-medium">{nameOf(task.created_by) ?? "—"}</dd>
+          <dt className="text-muted-foreground">Người phụ trách</dt>
+          <dd className="font-medium">{nameOf(task.assignee_id) ?? "—"}</dd>
+        </dl>
+      )}
 
       {task.note && <NoteBlock label={task.type === "FIXED" ? "Hướng dẫn" : "Ghi chú"} text={task.note} />}
       {task.employee_note && <NoteBlock label={employeeNoteLabel} text={task.employee_note} />}
@@ -92,13 +140,27 @@ function who(entry: TimelineEntry) {
   if (entry.actor === "system") return "Hệ thống";
   return entry.actorName ?? "Quản lý";
 }
-const VERB: Record<TimelineEntry["action"], string> = {
-  CREATED: "tạo việc",
-  UPDATED: "cập nhật",
-  RESCHEDULED: "dời deadline",
-  COMPLETED: "hoàn thành",
-  REOPENED: "mở lại",
-};
+/** "tạo việc", "giao việc cho Bình", "chuyển việc từ An sang Bình" … */
+function what(entry: TimelineEntry) {
+  const to = entry.toName ?? "người khác";
+  switch (entry.action) {
+    case "CREATED":
+      return "tạo việc";
+    case "UPDATED":
+      return "cập nhật";
+    case "RESCHEDULED":
+      return "dời deadline";
+    case "COMPLETED":
+      return "hoàn thành";
+    case "REOPENED":
+      return "mở lại";
+    case "TASK_ASSIGNED":
+      return `giao việc cho ${to}`;
+    case "TASK_TRANSFERRED":
+    case "TASK_REASSIGNED_BY_ADMIN":
+      return entry.fromName ? `chuyển việc từ ${entry.fromName} sang ${to}` : `chuyển việc cho ${to}`;
+  }
+}
 
 function Timeline({ taskId }: { taskId: string }) {
   const [result, setResult] = useState<TimelineResult | null>(null);
@@ -150,7 +212,7 @@ function Timeline({ taskId }: { taskId: string }) {
               />
               <div className="min-w-0">
                 <p className="font-medium">
-                  {who(e)} {VERB[e.action]}
+                  {who(e)} {what(e)}
                 </p>
                 {e.detail && <p className="text-caption text-muted-foreground">{e.detail}</p>}
                 <p className="text-micro text-muted-foreground">

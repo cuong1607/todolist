@@ -258,11 +258,42 @@ isOneToOne: false
         isOneToOne: false
         isSetofReturn: true
       } },
+"team_members":
+{ Args: Record<PropertyKey, never>; Returns: {
+              "active": boolean,"full_name": string,"id": string
+            }[]
+                           },
 "team_overview":
 { Args: { "p_from": string,"p_to": string }; Returns: {
               "adhoc_done": number,"adhoc_total": number,"assignee_id": string,"fixed_done": number,"fixed_total": number,"overdue": number
             }[]
                            },
+"transfer_task":
+{ Args: { "p_new_assignee_id": string,"p_task_id": string }; Returns: {
+              "allow_employee_note": boolean,
+"assignee_id": string,
+"completed": boolean,
+"completed_at": string | null,
+"completed_by": string | null,
+"created_at": string,
+"created_by": string | null,
+"deadline_at": string | null,
+"employee_note": string | null,
+"fixed_template_id": string | null,
+"id": string,
+"note": string | null,
+"sort_order": number,
+"task_date": string | null,
+"title": string,
+"type": Database["public"]['Enums']["task_type"],
+"updated_at": string
+            }
+                          SetofOptions: {
+        from: "*"
+        to: "tasks"
+        isOneToOne: true
+        isSetofReturn: false
+      } },
 "zalo_clear_tokens":
 { Args: Record<PropertyKey, never>; Returns: undefined
                            },
@@ -289,7 +320,7 @@ isOneToOne: false
                            }
           }
           Enums: {
-            "app_role": "ADMIN"|"EMPLOYEE","notification_provider": "ZALO"|"IN_APP","notification_status": "PENDING"|"PROCESSING"|"SENT"|"FAILED","notification_type": "MORNING_SUMMARY"|"DEADLINE_REMINDER"|"OVERDUE_REMINDER"|"END_OF_DAY_SUMMARY"|"ADMIN_DAILY_SUMMARY"|"NEW_TASK"|"DEADLINE_CHANGED"|"TEST","task_action": "CREATED"|"UPDATED"|"RESCHEDULED"|"COMPLETED"|"REOPENED","task_display_status": "UPCOMING"|"TODAY"|"OVERDUE"|"COMPLETED","task_type": "FIXED"|"ADHOC"
+            "app_role": "ADMIN"|"EMPLOYEE","notification_provider": "ZALO"|"IN_APP","notification_status": "PENDING"|"PROCESSING"|"SENT"|"FAILED","notification_type": "MORNING_SUMMARY"|"DEADLINE_REMINDER"|"OVERDUE_REMINDER"|"END_OF_DAY_SUMMARY"|"ADMIN_DAILY_SUMMARY"|"NEW_TASK"|"DEADLINE_CHANGED"|"TEST"|"TASK_ASSIGNED"|"TASK_TRANSFERRED","task_action": "CREATED"|"UPDATED"|"RESCHEDULED"|"COMPLETED"|"REOPENED"|"TASK_ASSIGNED"|"TASK_TRANSFERRED"|"TASK_REASSIGNED_BY_ADMIN","task_display_status": "UPCOMING"|"TODAY"|"OVERDUE"|"COMPLETED","task_type": "FIXED"|"ADHOC"
           }
           CompositeTypes: {
             [_ in never]: never
@@ -405,7 +436,7 @@ export type CompositeTypes<
 export const Constants = {
   "public": {
           Enums: {
-            "app_role": ["ADMIN", "EMPLOYEE"],"notification_provider": ["ZALO", "IN_APP"],"notification_status": ["PENDING", "PROCESSING", "SENT", "FAILED"],"notification_type": ["MORNING_SUMMARY", "DEADLINE_REMINDER", "OVERDUE_REMINDER", "END_OF_DAY_SUMMARY", "ADMIN_DAILY_SUMMARY", "NEW_TASK", "DEADLINE_CHANGED", "TEST"],"task_action": ["CREATED", "UPDATED", "RESCHEDULED", "COMPLETED", "REOPENED"],"task_display_status": ["UPCOMING", "TODAY", "OVERDUE", "COMPLETED"],"task_type": ["FIXED", "ADHOC"]
+            "app_role": ["ADMIN", "EMPLOYEE"],"notification_provider": ["ZALO", "IN_APP"],"notification_status": ["PENDING", "PROCESSING", "SENT", "FAILED"],"notification_type": ["MORNING_SUMMARY", "DEADLINE_REMINDER", "OVERDUE_REMINDER", "END_OF_DAY_SUMMARY", "ADMIN_DAILY_SUMMARY", "NEW_TASK", "DEADLINE_CHANGED", "TEST", "TASK_ASSIGNED", "TASK_TRANSFERRED"],"task_action": ["CREATED", "UPDATED", "RESCHEDULED", "COMPLETED", "REOPENED", "TASK_ASSIGNED", "TASK_TRANSFERRED", "TASK_REASSIGNED_BY_ADMIN"],"task_display_status": ["UPCOMING", "TODAY", "OVERDUE", "COMPLETED"],"task_type": ["FIXED", "ADHOC"]
           }
         }
 } as const

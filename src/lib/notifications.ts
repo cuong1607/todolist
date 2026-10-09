@@ -9,6 +9,8 @@ export const NOTIFICATION_TYPE_LABELS: Record<Enums<"notification_type">, string
   NEW_TASK: "Việc mới",
   DEADLINE_CHANGED: "Đổi deadline",
   TEST: "Tin nhắn thử",
+  TASK_ASSIGNED: "Được giao việc",
+  TASK_TRANSFERRED: "Nhận việc chuyển giao",
 };
 
 export const NOTIFICATION_PROVIDER_LABELS: Record<Enums<"notification_provider">, string> = {

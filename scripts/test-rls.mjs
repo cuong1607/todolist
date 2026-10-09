@@ -13,6 +13,7 @@ const PASSWORD = "Password123!";
 const ADMIN = "00000000-0000-4000-8000-000000000001";
 const AN = "00000000-0000-4000-8000-000000000002";
 const BINH = "00000000-0000-4000-8000-000000000003";
+const CUONG = "00000000-0000-4000-8000-000000000005";
 
 let failed = 0;
 function check(name, ok, detail) {
@@ -227,8 +228,105 @@ async function signIn(email) {
   );
   if (mine) created.push(mine.id);
 
-  const { error: forOtherErr } = await an.from("tasks").insert({ type: "ADHOC", title: "Cho Bình", assignee_id: BINH });
-  check("employee cannot create an ad-hoc task for someone else", !!forOtherErr, forOtherErr);
+  // ---------- assignment: an ad-hoc task for another member ----------
+  const { data: given, error: giveErr } = await an
+    .from("tasks").insert({ type: "ADHOC", title: "Cho Bình", assignee_id: BINH, created_by: BINH }).select("id, assignee_id, created_by").single();
+  check(
+    "employee creates an ad-hoc task for another member; created_by is forced to self",
+    given?.assignee_id === BINH && given.created_by === AN,
+    giveErr ?? given,
+  );
+  if (given) created.push(given.id);
+
+  const { data: binhSees } = await binh.from("tasks").select("id").eq("id", given?.id);
+  check("the assignee sees the task right away", binhSees?.length === 1, binhSees);
+
+  const { data: creatorEdit, error: creatorEditErr } = await an
+    .from("tasks").update({ title: "sửa bởi người tạo", completed: true }).eq("id", given?.id).select();
+  check("the creator cannot update a task assigned to someone else", (creatorEdit ?? []).length === 0, creatorEditErr ?? creatorEdit);
+
+  const { data: binhOwn } = await binh.from("tasks").select("id").eq("assignee_id", BINH).neq("id", given?.id).limit(1);
+  const { data: anPeek } = await an.from("tasks").select("id").eq("assignee_id", BINH).neq("created_by", AN);
+  const { data: anPeekFixed } = await an.from("tasks").select("id").eq("assignee_id", BINH).is("created_by", null);
+  check(
+    "assigning a task does not expose the assignee's other tasks",
+    binhOwn?.length === 1 && anPeek?.length === 0 && anPeekFixed?.length === 0,
+    [binhOwn, anPeek, anPeekFixed],
+  );
+
+  await service.from("profiles").update({ active: false }).eq("id", CUONG);
+  const { error: inactiveErr } = await an.from("tasks").insert({ type: "ADHOC", title: "Cho người đã nghỉ", assignee_id: CUONG });
+  check("employee cannot assign to an inactive member", inactiveErr?.code === "42501", inactiveErr);
+  const { data: roster } = await an.rpc("team_members");
+  check(
+    "team_members lists names only, with the inactive flag",
+    roster?.length === 5 && roster.find((m) => m.id === CUONG)?.active === false && Object.keys(roster[0]).sort().join() === "active,full_name,id",
+    roster,
+  );
+  await service.from("profiles").update({ active: true }).eq("id", CUONG);
+
+  const { error: fixedForOtherErr } = await an
+    .from("tasks").insert({ type: "FIXED", title: "Cố định cho Bình", assignee_id: BINH, fixed_template_id: crypto.randomUUID() });
+  check("assignment does not open FIXED tasks to members", !!fixedForOtherErr, fixedForOtherErr);
+
+  const { data: anonRoster, error: anonRosterErr } = await newClient().rpc("team_members");
+  check("anon cannot call team_members", !!anonRosterErr && !anonRoster, anonRoster);
+
+  // ---------- transfer: only through transfer_task ----------
+  const overdueAt = new Date(Date.now() - 36e5).toISOString();
+  const { data: byAdmin } = await service
+    .from("tasks")
+    .insert({ type: "ADHOC", assignee_id: AN, created_by: ADMIN, title: "Admin giao An", note: "giữ nguyên", deadline_at: overdueAt })
+    .select("id")
+    .single();
+  created.push(byAdmin.id);
+  const transfer = (client, taskId, to) => client.rpc("transfer_task", { p_task_id: taskId, p_new_assignee_id: to });
+
+  const { error: anonTransferErr } = await transfer(newClient(), byAdmin.id, BINH);
+  check("anon cannot call transfer_task", !!anonTransferErr, anonTransferErr);
+
+  const { error: directErr } = await an.from("tasks").update({ assignee_id: BINH }).eq("id", byAdmin.id);
+  check("employee cannot reassign with a direct update", directErr?.code === "42501", directErr);
+  const { error: adminDirectErr } = await admin.from("tasks").update({ assignee_id: BINH }).eq("id", byAdmin.id);
+  check("admin cannot reassign with a direct update either", adminDirectErr?.code === "42501", adminDirectErr);
+
+  const { error: strangerErr } = await transfer(binh, byAdmin.id, BINH);
+  check("employee cannot transfer a task that is not theirs (not even to themselves)", strangerErr?.code === "42501", strangerErr);
+
+  const { data: fixedOfAn } = await an.from("tasks").select("id").eq("type", "FIXED").limit(1).single();
+  const { error: fixedTransferErr } = await transfer(an, fixedOfAn.id, BINH);
+  check("FIXED tasks cannot be transferred", fixedTransferErr?.code === "42501", fixedTransferErr);
+  const { error: adminFixedErr } = await transfer(admin, fixedOfAn.id, BINH);
+  check("…not by an admin either", adminFixedErr?.code === "42501", adminFixedErr);
+
+  await an.from("tasks").update({ completed: true }).eq("id", byAdmin.id);
+  const { error: completedErr } = await transfer(an, byAdmin.id, BINH);
+  check("a completed task cannot be transferred", completedErr?.code === "42501", completedErr);
+  await an.from("tasks").update({ completed: false }).eq("id", byAdmin.id);
+
+  const { data: moved, error: moveErr } = await transfer(an, byAdmin.id, BINH).single();
+  check(
+    "assignee transfers an open task; only assignee_id changes",
+    moved?.assignee_id === BINH && moved.created_by === ADMIN && moved.note === "giữ nguyên" && Date.parse(moved.deadline_at) === Date.parse(overdueAt),
+    moveErr ?? moved,
+  );
+  const { data: stillLate } = await binh.from("tasks").select("display_status").eq("id", byAdmin.id).single();
+  check("a transferred task is still overdue for the new assignee", stillLate?.display_status === "OVERDUE", stillLate);
+  const { data: gone } = await an.from("tasks").select("id").eq("id", byAdmin.id);
+  const { data: goneHistory } = await an.from("task_history").select("id").eq("task_id", byAdmin.id);
+  check("the previous assignee loses access to the task and its history", gone?.length === 0 && goneHistory?.length === 0, [gone, goneHistory]);
+  const { error: takeBackErr } = await transfer(an, byAdmin.id, AN);
+  check("…and cannot take it back", takeBackErr?.code === "42501", takeBackErr);
+
+  const { data: givenHistory } = await an.from("task_history").select("id").eq("task_id", given?.id);
+  check("the creator reads the history of a task they handed out", (givenHistory ?? []).length >= 1, givenHistory);
+  const { data: reassigned, error: reassignErr } = await transfer(an, given?.id, CUONG).single();
+  check("the creator can reassign a task they handed out", reassigned?.assignee_id === CUONG && reassigned.created_by === AN, reassignErr ?? reassigned);
+  const { data: binhLost } = await binh.from("tasks").select("id").eq("id", given?.id);
+  check("…which the first assignee then no longer sees", binhLost?.length === 0, binhLost);
+
+  const { data: adminMoved, error: adminMoveErr } = await transfer(admin, byAdmin.id, AN).single();
+  check("admin can transfer any ad-hoc task", adminMoved?.assignee_id === AN, adminMoveErr ?? adminMoved);
 
   const { error: doneErr } = await an.from("tasks").insert({ type: "ADHOC", title: "Đã xong sẵn", completed: true, completed_at: new Date().toISOString() });
   check("employee cannot create an already-completed task", !!doneErr, doneErr);
@@ -277,6 +375,8 @@ async function signIn(email) {
   const { error: adminEditErr } = await admin.from("tasks").update({ title: "admin đổi" }).eq("id", mine.id);
   check("admin cannot rewrite an employee's ad-hoc content", !!adminEditErr, adminEditErr);
 
+  // Assigning and transferring notified the receivers: clean those up with the tasks.
+  await service.from("notification_logs").delete().in("task_id", created);
   await service.from("tasks").delete().in("id", created);
 }
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import type { TeamMember } from "@/lib/members";
 import { deriveStatus } from "@/lib/task-status";
 import { formatDateLong, formatDay } from "@/lib/time";
 import type { TodayTask } from "../today/task-types";
@@ -10,7 +11,7 @@ import { TaskRow } from "./task-row";
 export type HistoryDay = { date: string; tasks: TodayTask[] };
 
 /** Past work grouped by day, newest first. Rows open a read-only detail sheet with the change log. */
-export function HistoryView({ days }: { days: HistoryDay[] }) {
+export function HistoryView({ days, members }: { days: HistoryDay[]; members?: TeamMember[] }) {
   const [now] = useState(() => new Date());
   const [dialog, setDialog] = useState<{ open: boolean; task: TodayTask | null }>({ open: false, task: null });
 
@@ -43,7 +44,7 @@ export function HistoryView({ days }: { days: HistoryDay[] }) {
         );
       })}
 
-      <TaskDetailDialog open={dialog.open} task={dialog.task} onOpenChange={(open) => setDialog((d) => ({ ...d, open }))} />
+      <TaskDetailDialog open={dialog.open} task={dialog.task} members={members} onOpenChange={(open) => setDialog((d) => ({ ...d, open }))} />
     </div>
   );
 }

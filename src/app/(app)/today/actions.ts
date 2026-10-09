@@ -53,6 +53,22 @@ export async function saveTaskNote(taskId: string, note: string): Promise<TaskAc
   return { ok: true, task: data };
 }
 
+/**
+ * Hand an ad-hoc task to another member. Every rule (who may, ADHOC only, not completed, active
+ * receiver) lives in the `transfer_task` RPC — `assignee_id` cannot be updated any other way.
+ */
+export async function transferTask(taskId: string, newAssigneeId: string): Promise<TaskActionResult> {
+  await requireUser();
+  const args = z.object({ p_task_id: z.uuid(), p_new_assignee_id: z.uuid() }).safeParse({ p_task_id: taskId, p_new_assignee_id: newAssigneeId });
+  if (!args.success) return { ok: false, error: "Dữ liệu không hợp lệ" };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("transfer_task", args.data).select(TODAY_TASK_COLUMNS).maybeSingle();
+  if (error || !data) return { ok: false, error: userMessage(error, "Không chuyển được công việc") };
+
+  return { ok: true, task: data };
+}
+
 /** Guard-trigger errors (42501) carry a Vietnamese message meant for users; hide anything else. */
 function userMessage(error: { code?: string; message: string } | null, fallback: string) {
   return error?.code === "42501" ? error.message : fallback;

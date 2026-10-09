@@ -13,12 +13,13 @@ import { deriveStatus, type DisplayStatus } from "@/lib/task-status";
 import { formatDeadline, formatTimeLocal, localDateOf, toDeadlineISO, todayLocal } from "@/lib/time";
 import { ease, transition } from "@/lib/motion";
 import { cn } from "@/lib/utils";
+import type { TeamMember } from "@/lib/members";
 import type { Tables } from "@/types/database";
-import { saveTaskNote, setTaskDone } from "./actions";
+import { saveTaskNote, setTaskDone, transferTask } from "./actions";
 import { createAdhocTask, updateAdhocTask, type AdhocFormState } from "./adhoc-actions";
 import { AdhocDialog, type AdhocValues } from "./adhoc-dialog";
 import { FixedTaskDialog } from "./fixed-task-dialog";
-import { toTodayTask, type TodayTask } from "./task-types";
+import { assignerOf, toTodayTask, type TodayTask } from "./task-types";
 
 /** Phase 6 spec: interaction animations stay within 150–250ms. */
 const cardTransition = { duration: 0.2, ease: ease.outSoft };
@@ -72,14 +73,18 @@ function useNow() {
 type Props = {
   initialTasks: TodayTask[];
   userId: string;
+  /** The whole team by name: who a task can go to, and who a task came from. */
+  members: TeamMember[];
   greeting: string;
   dateLabel: string;
 };
 
-export function TodayView({ initialTasks, userId, greeting, dateLabel }: Props) {
+export function TodayView({ initialTasks, userId, members, greeting, dateLabel }: Props) {
   const router = useRouter();
   const now = useNow();
   const today = todayLocal(now);
+  const assignees = useMemo(() => members.filter((m) => m.active && m.id !== userId), [members, userId]);
+  const nameOf = useCallback((id: string | null) => members.find((m) => m.id === id)?.full_name ?? null, [members]);
 
   // The screen owns its task state: optimistic ticks + Realtime merges, no page reloads.
   const [tasks, setTasks] = useState(initialTasks);
@@ -245,6 +250,15 @@ export function TodayView({ initialTasks, userId, greeting, dateLabel }: Props) 
     const retry = { label: "Thử lại", onClick: () => void saveAdhoc(values, existing) };
     const failed = (): AdhocFormState => ({});
 
+    // A task for someone else never enters this list: it shows up on the assignee's screen.
+    if (!existing && values.assigneeId && values.assigneeId !== userId) {
+      formData.set("assignee_id", values.assigneeId);
+      const result = await createAdhocTask({}, formData).catch(failed);
+      if (result.ok) toast.success(`Đã giao cho ${nameOf(values.assigneeId) ?? "người nhận"}`);
+      else toast.error(result.error ?? "Không tạo được. Thử lại sau.", { action: retry });
+      return;
+    }
+
     if (existing) {
       formData.set("id", existing.id);
       inFlight.current.add(existing.id);
@@ -276,6 +290,8 @@ export function TodayView({ initialTasks, userId, greeting, dateLabel }: Props) 
       task_date: null,
       sort_order: 0,
       created_at: new Date().toISOString(),
+      assignee_id: userId,
+      created_by: userId,
     };
     creating.current += 1;
     setPending((p) => new Set(p).add(tempId));
@@ -302,6 +318,21 @@ export function TodayView({ initialTasks, userId, greeting, dateLabel }: Props) 
       const rows = deferred.current;
       deferred.current = [];
       rows.forEach(upsert);
+    }
+  }
+
+  /** Hand an open ad-hoc task to a teammate: it leaves this list at once and comes back if the server refuses. */
+  async function transfer(task: TodayTask, toId: string) {
+    inFlight.current.add(task.id);
+    setTasks((prev) => prev.filter((t) => t.id !== task.id));
+
+    const result = await transferTask(task.id, toId).catch(() => ({ ok: false as const, error: "Không chuyển được công việc" }));
+    inFlight.current.delete(task.id);
+    if (result.ok) {
+      toast.success(`Đã chuyển cho ${nameOf(toId) ?? "người nhận"}`);
+    } else {
+      setTasks((prev) => (prev.some((t) => t.id === task.id) ? prev : [...prev, task]));
+      toast.error(result.error, { action: { label: "Thử lại", onClick: () => void transfer(task, toId) } });
     }
   }
 
@@ -432,6 +463,7 @@ export function TodayView({ initialTasks, userId, greeting, dateLabel }: Props) 
                             status={deriveStatus(task, now)}
                             now={now}
                             pending={pending.has(task.id)}
+                            assignedBy={nameOf(assignerOf(task))}
                             onToggle={() => void toggle(task, !task.completed)}
                             onOpen={() => openTask(task)}
                           />
@@ -450,8 +482,11 @@ export function TodayView({ initialTasks, userId, greeting, dateLabel }: Props) 
       <AdhocDialog
         open={adhocDialog.open}
         task={adhocDialog.task}
+        assignees={assignees}
+        assignedBy={adhocDialog.task && nameOf(assignerOf(adhocDialog.task))}
         onOpenChange={(open) => setAdhocDialog((d) => ({ ...d, open }))}
         onSubmit={(values, task) => void saveAdhoc(values, task)}
+        onTransfer={(task, toId) => void transfer(task, toId)}
       />
       <FixedTaskDialog
         open={fixedDialog.open}
@@ -511,12 +546,14 @@ type TaskCardProps = {
   now: Date;
   /** Shown optimistically; the server has not confirmed it yet, so it cannot be ticked or opened. */
   pending?: boolean;
+  /** Name of whoever handed this task over; null for self-made and fixed tasks. */
+  assignedBy?: string | null;
   onToggle: () => void;
   onOpen: () => void;
 };
 
 /** Minimal card: checkbox · title · deadline · one-line note preview. Everything else lives in the detail sheet. */
-function TaskCard({ task, status, now, pending, onToggle, onOpen }: TaskCardProps) {
+function TaskCard({ task, status, now, pending, assignedBy, onToggle, onOpen }: TaskCardProps) {
   const done = task.completed;
   const overdue = status === "OVERDUE";
   const notePreview = task.type === "FIXED" ? (task.employee_note ?? task.note) : task.note;
@@ -587,6 +624,7 @@ function TaskCard({ task, status, now, pending, onToggle, onOpen }: TaskCardProp
           </p>
         )}
         {notePreview && <p className="mt-1 line-clamp-1 text-caption text-muted-foreground">{notePreview}</p>}
+        {assignedBy && <p className="mt-1 text-micro text-muted-foreground">Giao bởi: {assignedBy}</p>}
       </button>
     </div>
   );

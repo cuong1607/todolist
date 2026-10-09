@@ -50,10 +50,11 @@ select results_eq(
   'assignee / creator come from the session; ad-hoc has no task_date'
 );
 
+-- Assigning to another member is covered in task_assignment.test.sql.
 select throws_ok(
-  $$ insert into tasks (type, title, assignee_id) values ('ADHOC', 'For Bình', '00000000-0000-4000-8000-000000000003') $$,
-  '42501', 'Chỉ được tạo công việc cho chính mình',
-  'cannot create a task for someone else'
+  $$ insert into tasks (type, title, assignee_id) values ('ADHOC', 'For nobody', '99999999-0000-4000-8000-000000000000') $$,
+  '42501', 'Người nhận không tồn tại hoặc đã ngừng hoạt động',
+  'cannot create a task for someone who is not an active member'
 );
 select throws_ok(
   $$ insert into tasks (type, title, task_date) values ('FIXED', 'Fake fixed', current_date) $$,

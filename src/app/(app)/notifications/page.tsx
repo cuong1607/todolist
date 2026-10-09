@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { AlarmClock, Bell, ChevronRight, ClipboardCheck, Sunrise, TriangleAlert, Users } from "lucide-react";
+import { AlarmClock, ArrowRightLeft, Bell, ChevronRight, ClipboardCheck, Sunrise, TriangleAlert, UserPlus, Users } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,8 @@ const ICONS: Record<Enums<"notification_type">, React.ReactNode> = {
   NEW_TASK: <Bell />,
   DEADLINE_CHANGED: <AlarmClock />,
   TEST: <Bell />,
+  TASK_ASSIGNED: <UserPlus />,
+  TASK_TRANSFERRED: <ArrowRightLeft />,
 };
 
 /** The in-app inbox: what the IN_APP provider delivered to the signed-in member. */

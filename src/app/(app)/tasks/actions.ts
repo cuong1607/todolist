@@ -2,6 +2,7 @@
 
 import { z } from "zod";
 import { requireUser } from "@/lib/auth";
+import { getTeamMembers } from "@/lib/members";
 import { createClient } from "@/lib/supabase/server";
 import { formatDeadline } from "@/lib/time";
 import type { Enums, Json } from "@/types/database";
@@ -12,29 +13,38 @@ export type TimelineEntry = {
   at: string;
   /** Who did it, relative to the viewer. */
   actor: "me" | "system" | "other";
-  /** Name of an "other" actor — null when RLS hides their profile (employees can't read other members). */
+  /** Name of an "other" actor — null when they are no longer on the team. */
   actorName: string | null;
   /** What changed, already worded for the user. */
   detail: string | null;
+  /** Assignment actions only: who the task went to, and (for a transfer) who had it before. */
+  toName?: string | null;
+  fromName?: string | null;
 };
 
 export type TimelineResult = { ok: true; entries: TimelineEntry[] } | { ok: false; error: string };
 
-/** Change log of one task, oldest first. RLS limits it to the viewer's own tasks (admins: all). */
+/** Change log of one task, oldest first. RLS limits it to tasks the viewer may read (own, handed out; admins: all). */
 export async function getTaskTimeline(taskId: string): Promise<TimelineResult> {
   const me = await requireUser();
   const id = z.uuid().safeParse(taskId);
   if (!id.success) return { ok: false, error: "Dữ liệu không hợp lệ" };
 
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("task_history")
-    .select("id, action, actor_id, old_data, new_data, created_at, actor:profiles(full_name)")
-    .eq("task_id", id.data)
-    .order("created_at")
-    .order("id")
-    .limit(100);
+  const [{ data, error }, members] = await Promise.all([
+    supabase
+      .from("task_history")
+      .select("id, action, actor_id, old_data, new_data, created_at")
+      .eq("task_id", id.data)
+      .order("created_at")
+      .order("id")
+      .limit(100),
+    // Names come from the team list: employees cannot read other members' profiles.
+    getTeamMembers(),
+  ]);
   if (error) return { ok: false, error: "Không tải được lịch sử" };
+
+  const nameOf = (userId: Json | undefined) => (typeof userId === "string" ? (members.find((m) => m.id === userId)?.full_name ?? null) : null);
 
   return {
     ok: true,
@@ -43,11 +53,16 @@ export async function getTaskTimeline(taskId: string): Promise<TimelineResult> {
       action: h.action,
       at: h.created_at,
       actor: h.actor_id === null ? "system" : h.actor_id === me.id ? "me" : "other",
-      actorName: h.actor?.full_name || null,
+      actorName: nameOf(h.actor_id ?? undefined),
       detail: describeChange(h.action, h.old_data, h.new_data),
+      ...(ASSIGNMENT_ACTIONS.has(h.action)
+        ? { toName: nameOf(field(h.new_data, "assignee_id")), fromName: nameOf(field(h.old_data, "assignee_id")) }
+        : {}),
     })),
   };
 }
+
+const ASSIGNMENT_ACTIONS: ReadonlySet<Enums<"task_action">> = new Set(["TASK_ASSIGNED", "TASK_TRANSFERRED", "TASK_REASSIGNED_BY_ADMIN"]);
 
 const FIELD_LABELS: Record<string, string> = {
   title: "tên",

@@ -175,7 +175,7 @@ try {
   check("employee note persists and shows as the card preview", await page.getByText("Tồn kho: 42").isVisible());
 
   // ---------- history (Công việc) ----------
-  await page.goto(`${BASE}/tasks`);
+  await page.goto(`${BASE}/tasks?tab=done`);
   const historyToday = region(/^Hôm nay/);
   await historyToday.getByText("E2E phát sinh").waitFor();
   check("history lists today's completed ad-hoc under 'Hôm nay'", (await historyToday.getByText("1/1 xong").count()) === 1);

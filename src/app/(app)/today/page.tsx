@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { requireUser } from "@/lib/auth";
+import { getTeamMembers } from "@/lib/members";
 import { createClient } from "@/lib/supabase/server";
 import { APP_TIMEZONE, formatDateLong, startOfDayISO, todayLocal } from "@/lib/time";
 import { TODAY_TASK_COLUMNS } from "./task-types";
@@ -15,19 +16,22 @@ export default async function TodayPage() {
   // Today's FIXED tasks + every unfinished ADHOC task (they carry over across days)
   // + ADHOC tasks finished today. Filter by the session user explicitly: RLS alone
   // would let an admin see everyone's tasks.
-  const { data: tasks, error } = await supabase
-    .from("tasks")
-    .select(TODAY_TASK_COLUMNS)
-    .eq("assignee_id", me.id)
-    .or(
-      [
-        `and(type.eq.FIXED,task_date.eq.${today})`,
-        "and(type.eq.ADHOC,completed.is.false)",
-        `and(type.eq.ADHOC,completed_at.gte.${startOfDayISO(today)})`,
-      ].join(","),
-    )
-    .order("sort_order")
-    .order("created_at");
+  const [{ data: tasks, error }, members] = await Promise.all([
+    supabase
+      .from("tasks")
+      .select(TODAY_TASK_COLUMNS)
+      .eq("assignee_id", me.id)
+      .or(
+        [
+          `and(type.eq.FIXED,task_date.eq.${today})`,
+          "and(type.eq.ADHOC,completed.is.false)",
+          `and(type.eq.ADHOC,completed_at.gte.${startOfDayISO(today)})`,
+        ].join(","),
+      )
+      .order("sort_order")
+      .order("created_at"),
+    getTeamMembers(),
+  ]);
 
   if (error) throw new Error("Không tải được công việc hôm nay");
 
@@ -35,6 +39,7 @@ export default async function TodayPage() {
     <TodayView
       initialTasks={tasks}
       userId={me.id}
+      members={members}
       greeting={`${greetingFor(new Date())}, ${givenName(me.full_name || me.email)}`}
       dateLabel={capitalize(formatDateLong(today))}
     />

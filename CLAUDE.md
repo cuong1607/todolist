@@ -36,12 +36,21 @@ Schema (Phase 3): `fixed_task_templates`, `tasks`, `task_history`, `notification
 - `tasks.fixed_template_id` is `on delete restrict`: templates with history can't be hard-deleted — disable (`active = false`).
 - Stored state is only `completed` (+ `completed_at/by`, stamped by trigger). `task_date` is set for FIXED, null for ADHOC (enforced by check).
 - `private.guard_task_update()`: FIXED — clients change only `completed` and `employee_note` (if `allow_employee_note`), employees only on today's task. ADHOC — owner may also edit `title`/`note`/`deadline_at` on any day. Nobody deletes tasks.
-- ADHOC: employees create for themselves only (`guard_task_insert` forces assignee/creator from the session — never send `assignee_id`). No time picked = 23:59 local.
+- ADHOC: created for yourself (omit `assignee_id`) or for another ACTIVE member; `guard_task_insert` always forces `created_by` from the session. No time picked = 23:59 local.
 - Unfinished ADHOC tasks carry over: Today = "today's FIXED + all open ADHOC + ADHOC completed today". Carry-over label uses `created_at`.
 - Display status (UPCOMING/TODAY/OVERDUE/COMPLETED) is derived, never stored: SQL `public.display_status(tasks)` (computed column) and TS `deriveStatus()` in `@/lib/task-status` — keep both in sync. No deadline → never overdue ("Việc đang tồn").
 - `task_history` is written only by the `log_task_change` trigger (CREATED/UPDATED/RESCHEDULED/COMPLETED/REOPENED, changed fields only; `actor_id` null = system). Read-only for clients.
 - `notification_settings` row per profile (auto-created); `profiles.notification_enabled` is the master switch. `notification_logs` are written by the notification engine only (see below). `system_settings`: members read, admins write.
 - Timezone: `private.app_timezone()` in SQL and `APP_TIMEZONE` in `@/lib/time` — keep in sync. Use `todayLocal()` for `task_date` in the app.
+
+## Assignment & transfer (ADHOC only)
+- `created_by` = who created the task (never changes); `assignee_id` = who is responsible now. Summaries, reminders, dashboard and reports all go by `assignee_id`.
+- Read: assignee, the creator of an ad-hoc task (read-only — UPDATE stays with the assignee/admin), admins. `task_history` follows the same rule. Lists must still filter explicitly ("Đã giao" = `created_by = me AND assignee_id <> me`).
+- `assignee_id` changes ONLY through the `transfer_task(task, new_assignee)` RPC (assignee, creator or admin; not completed; active receiver). `guard_task_update` rejects a direct update for everyone, admins included. FIXED tasks are never assigned or transferred. No accept/reject or approval state.
+- Names: employees cannot read other profiles — use `getTeamMembers()` (`@/lib/members`, `team_members()` RPC: id, name, active). Pickers offer active members only (admins included).
+- History actions `TASK_ASSIGNED` / `TASK_TRANSFERRED` / `TASK_REASSIGNED_BY_ADMIN` are picked by `log_task_change`. Notifications `TASK_ASSIGNED` / `TASK_TRANSFERRED` are enqueued by the `notify_task_assignment` trigger (new assignee only, never the actor; keys `task-assigned:<task>`, `task-transferred:<task>:<n>`).
+- UI: "Giao cho" on the create form; "Chuyển công việc" lives in the task sheet's "…" (`TransferTask`: menu from `sm`, bottom sheet below) — never a button on the card. `/tasks?tab=mine|assigned|done`.
+- Tests: `supabase/tests/task_assignment*.test.sql`, `task_transfer.test.sql`, `npm run test:assign` (browser, two users).
 
 ## Today screen (Phase 6)
 - `src/app/(app)/today/`: `TodayView` owns task state client-side — optimistic ticks, merges of rows returned by actions, Supabase Realtime (`tasks` is in the `supabase_realtime` publication). Today actions return the row (`TODAY_TASK_COLUMNS`) and do NOT `revalidatePath` — ticking never re-renders the page.
@@ -59,10 +68,10 @@ Schema (Phase 3): `fixed_task_templates`, `tasks`, `task_history`, `notification
 - Durations: fast 120ms, normal 200ms, slow 280ms (`--duration-*`, `@/lib/motion`); nothing above 300ms.
 
 ## History, calendar, settings
-- `/tasks` (history) and `/calendar` are read-only: they reuse `TODAY_TASK_COLUMNS`/`TodayTask`, and share `TaskRow` + `TaskDetailDialog` from `src/app/(app)/tasks/`. Ticking/editing stays on Today.
-- History is paged by date window (`?before=YYYY-MM-DD`, 14 days): FIXED on `task_date` (past days, done or missed), ADHOC on the day it was completed. Calendar (`?month=YYYY-MM`): FIXED on `task_date`, ADHOC on its deadline (or completion day if it had none).
+- `/tasks` (tabs: Của tôi · Đã giao · Đã hoàn thành = the history) and `/calendar` are read-only: they reuse `TODAY_TASK_COLUMNS`/`TodayTask`, and share `TaskRow` + `TaskDetailDialog` from `src/app/(app)/tasks/`. Ticking/editing stays on Today.
+- History (`?tab=done`) is paged by date window (`&before=YYYY-MM-DD`, 14 days): FIXED on `task_date` (past days, done or missed), ADHOC on the day it was completed. Calendar (`?month=YYYY-MM`): FIXED on `task_date`, ADHOC on its deadline (or completion day if it had none).
 - Both pages filter by `assignee_id = me.id` explicitly (RLS alone shows admins everyone's tasks).
-- Change log: `getTaskTimeline()` reads `task_history`; actors are shown as Bạn / Hệ thống / Quản lý (employees can't read other profiles).
+- Change log: `getTaskTimeline()` reads `task_history`; actors are shown as Bạn / Hệ thống / the member's name (from `getTeamMembers()`).
 - Team name: `getTeamName()` in `@/lib/settings` (`system_settings.team_name`), passed to the shell via `ShellUser.teamName`. Notification preferences are stored only — no sender job yet.
 
 ## Admin dashboard (Phase 7)
@@ -128,5 +137,6 @@ Setup guide for a real OA: [docs/ZALO.md](docs/ZALO.md).
 - `npm run test:rls` — RLS checks via the Data API (needs `db:reset` seed). Run after every migration touching policies.
 - `npm run test:db` — pgTAP tests in `supabase/tests/` (schema, generation, idempotency, history, ad-hoc rules)
 - `npm run test:e2e` — browser auth flow via installed Edge (app must be running; set `E2E_BASE_URL`)
+- `npm run test:assign` — assign / transfer / "Đã giao" / notifications with two users in the browser (same setup as `test:e2e`; waits up to a minute for the notification tick)
 - `npm run test:ux` — UX checks with a slowed network: skeletons, optimistic create/edit/note, side sheets (same setup as `test:e2e`; run each on a fresh `db:reset`)
 - Seed accounts (local only, password `Password123!`): `admin@team.local`, `an@team.local`, `binh@team.local`, plus `admin@admin.com` (ADMIN) and `cuong@nhanvien.com` — the same emails exist in production with different passwords. The repo is public: never put production passwords in `seed.sql`.
